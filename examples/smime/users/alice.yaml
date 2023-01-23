@@ -1,0 +1,12 @@
+version: 1
+profile: smime
+subject: C=US, O=ACME Ltd., OU=Accounting, CN=Alice Alison
+issuer: root
+# alice is old-fashioned
+keyAlgorithm: RSA-2048
+signatureAlgorithm: ECDSAwithSHA256
+extensions:
+  - subjectAlternativeName:
+      content:
+        - type: mail
+          name: alice.alison@acme.com

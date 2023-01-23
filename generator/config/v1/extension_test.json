@@ -1,0 +1,1430 @@
+[
+    {
+        "expectSuccess": true,
+        "name": "subjKeyIdHash",
+        "test": {
+            "subjectKeyIdentifier": {
+                "content": "hash"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "subjKeyIdHashCrit",
+        "test": {
+            "subjectKeyIdentifier": {
+                "content": "hash",
+                "critical": true
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "subjKeyIdRaw",
+        "test": {
+            "subjectKeyIdentifier": {
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "subjKeyIdEmpty",
+        "test": {
+            "subjectKeyIdentifier": {
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjKeyIdMissingOverrideOrContent1",
+        "test": {
+            "subjectKeyIdentifier": {}
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjKeyIdMissingOverrideOrContent2",
+        "test": {
+            "subjectKeyIdentifier": {
+                "critical": true,
+                "optional": false
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjKeyIdUnknownKey",
+        "test": {
+            "subjectKeyIdentifier": {
+                "content": "hash",
+                "critical": true,
+                "optional": false,
+                "override": true,
+                "unknownKey": true
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjKeyIdIllegalContent",
+        "test": {
+            "subjectKeyIdentifier": {
+                "content": "blarb",
+                "critical": true,
+                "optional": false,
+                "override": true
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjKeyIdContentRawExclusive",
+        "test": {
+            "subjectKeyIdentifier": {
+                "content": "hash",
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "keyUsageEmpty",
+        "test": {
+            "keyUsage": {
+                "content": []
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "keyUsageAll",
+        "test": {
+            "keyUsage": {
+                "content": [],
+                "critical": true,
+                "optional": false,
+                "override": true
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "keyUsageSingleFlag",
+        "test": {
+            "keyUsage": {
+                "content": [
+                    "digitalSignature"
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "keyUsageAllFlags",
+        "test": {
+            "keyUsage": {
+                "content": [
+                    "digitalSignature",
+                    "nonRepudiation",
+                    "keyEncipherment",
+                    "dataEncipherment",
+                    "keyAgreement",
+                    "keyCertSign",
+                    "crlSign"
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "keyUsageDuplicateFlags",
+        "test": {
+            "keyUsage": {
+                "content": [
+                    "digitalSignature",
+                    "digitalSignature"
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "keyUsageRawEmpty",
+        "test": {
+            "keyUsage": {
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "keyUsageRawBinary",
+        "test": {
+            "keyUsage": {
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "keyUsageAllEmpty",
+        "test": {
+            "keyUsage": {}
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "keyUsageBadValue",
+        "test": {
+            "keyUsage": {
+                "content": [
+                    "badValue"
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "keyUsageBadType",
+        "test": {
+            "keyUsage": {
+                "content": [
+                    [
+                        "keyAgreement"
+                    ]
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "keyUsageBadUnwrap",
+        "test": {
+            "keyUsage": [
+                "keyAgreement"
+            ]
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "keyUsageUnknownKey",
+        "test": {
+            "keyUsage": {
+                "content": [],
+                "unknownKey": true
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "keyUsageWrongContent",
+        "test": {
+            "keyUsage": {
+                "content": "hash"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "keyUsageWrongContentRaw",
+        "test": {
+            "keyUsage": {
+                "content": [
+                    "digitalSignature"
+                ],
+                "oid": "1.2.3.4.5"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "keyUsageWrongContentRaw2",
+        "test": {
+            "keyUsage": {
+                "content": [
+                    "digitalSignature"
+                ],
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "subjAltNameEmpty",
+        "test": {
+            "subjectAlternativeName": {
+                "content": []
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "subjAltNameEverything",
+        "test": {
+            "subjectAlternativeName": {
+                "content": [],
+                "critical": true,
+                "optional": false,
+                "override": true
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "subjAltNameDns",
+        "test": {
+            "subjectAlternativeName": {
+                "content": [
+                    {
+                        "type": "dns",
+                        "name": "testdomain.testserver.org"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "subjAltNameIp",
+        "test": {
+            "subjectAlternativeName": {
+                "content": [
+                    {
+                        "type": "ip",
+                        "name": "127.0.0.1"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "subjAltNameMail",
+        "test": {
+            "subjectAlternativeName": {
+                "content": [
+                    {
+                        "type": "mail",
+                        "name": "adress@domain.com"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "subjAltNameAllType",
+        "test": {
+            "subjectAlternativeName": {
+                "content": [
+                    {
+                        "type": "dns",
+                        "name": "testdomain.testserver.org"
+                    },
+                    {
+                        "type": "mail",
+                        "name": "adress@domain.com"
+                    },
+                    {
+                        "type": "ip",
+                        "name": "127.0.0.1"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "subjAltNameAllTypeMultiple",
+        "test": {
+            "subjectAlternativeName": {
+                "content": [
+                    {
+                        "type": "dns",
+                        "name": "testdomain.testserver.org"
+                    },
+                    {
+                        "type": "dns",
+                        "name": "testdomain1.testserver.org"
+                    },
+                    {
+                        "type": "mail",
+                        "name": "adress@domain.com"
+                    },
+                    {
+                        "type": "mail",
+                        "name": "adress2@domain.com"
+                    },
+                    {
+                        "type": "ip",
+                        "name": "127.0.0.1"
+                    },
+                    {
+                        "type": "ip",
+                        "name": "192.168.0.1"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "subjAltNameRawEmpty",
+        "test": {
+            "subjectAlternativeName": {
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "subjAltNameRawBinary",
+        "test": {
+            "subjectAlternativeName": {
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjAltNameNil",
+        "test": {
+            "subjectAlternativeName": {}
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjAltNameNilType",
+        "test": {
+            "subjectAlternativeName": [
+                "testdomain.testserver.org"
+            ]
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjAltNamebadWrapping",
+        "test": {
+            "subjectAlternativeName": {
+                "content": [
+                    [
+                        "dns:testdomain.testserver.org"
+                    ]
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjAltNamebadWrapping2",
+        "test": {
+            "subjectAlternativeName": [
+                "dns:testdomain.testserver.org"
+            ]
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjAltNameUnknownKey",
+        "test": {
+            "subjectAlternativeName": {
+                "content": [],
+                "unknownKey": true
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjAltNameWrongExtType",
+        "test": {
+            "subjectAlternativeName": {
+                "content": "hash"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjAltNameContentNotRaw",
+        "test": {
+            "subjectAlternativeName": {
+                "content": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjAltNameContentNotCustom",
+        "test": {
+            "subjectAlternativeName": {
+                "content": [
+                    "dns:testdomain.testserver.org"
+                ],
+                "oid": "1.2.3.4.5"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "subjAltNameRawExclusive",
+        "test": {
+            "subjectAlternativeName": {
+                "content": [
+                    "ip:127.0.0.1"
+                ],
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "bcEmpty",
+        "test": {
+            "basicConstraints": {
+                "content": {}
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "bcAllArguments",
+        "test": {
+            "basicConstraints": {
+                "content": {
+                    "ca": true,
+                    "pathLen": 3
+                }
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "bcCaOnly",
+        "test": {
+            "basicConstraints": {
+                "content": {
+                    "ca": false
+                }
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "bcPathLenOnly",
+        "test": {
+            "basicConstraints": {
+                "content": {
+                    "pathLen": 2
+                }
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "bcRawEmpty",
+        "test": {
+            "basicConstraints": {
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "bcRawBinary",
+        "test": {
+            "basicConstraints": {
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "bcNil",
+        "test": {
+            "basicConstraints": {}
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "bcUnknownKey",
+        "test": {
+            "basicConstraints": {
+                "unknownKey": true
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "bcWrongContent",
+        "test": {
+            "basicConstraints": {
+                "content": "hash"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "bcWrongContent2",
+        "test": {
+            "basicConstraints": {
+                "content": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "bcNotCustom",
+        "test": {
+            "basicConstraints": {
+                "content": {
+                    "ca": true,
+                    "pathLen": 3
+                },
+                "oid": "1.2.3.4.5"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "bcRawExclusive",
+        "test": {
+            "basicConstraints": {
+                "content": {
+                    "ca": false
+                },
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "cpEmpty",
+        "test": {
+            "certificatePolicies": {
+                "content": []
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "cpProfile",
+        "test": {
+            "certificatePolicies": {
+                "override": true
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "cpOne",
+        "test": {
+            "certificatePolicies": {
+                "content": [
+                    {
+                        "oid": "1.2.3.4.5"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "cpMultiple",
+        "test": {
+            "certificatePolicies": {
+                "content": [
+                    {
+                        "oid": "1.2.3.4.5"
+                    },
+                    {
+                        "oid": "1.2.3.4.6"
+                    },
+                    {
+                        "oid": "1.2.3.4.7"
+                    },
+                    {
+                        "oid": "1.2.3.4.8"
+                    },
+                    {
+                        "oid": "1.2.3.4.9"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "cpDuplicates",
+        "test": {
+            "certificatePolicies": {
+                "content": [
+                    {
+                        "oid": "1.2.3.4.5"
+                    },
+                    {
+                        "oid": "1.2.3.4.5"
+                    },
+                    {
+                        "oid": "1.2.3.4.5"
+                    },
+                    {
+                        "oid": "1.2.3.4.5"
+                    },
+                    {
+                        "oid": "1.2.3.4.5"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "cpRawEmpty",
+        "test": {
+            "certificatePolicies": {
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "cpRawBinary",
+        "test": {
+            "certificatePolicies": {
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "cpNil",
+        "test": {
+            "certificatePolicies": {}
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "cpUnknownKey",
+        "test": {
+            "certificatePolicies": {
+                "unknownKey": true
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "cpBadOid",
+        "test": {
+            "certificatePolicies": {
+                "content": [
+                    {
+                        "unknownKey": true
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "cpBadExtType",
+        "test": {
+            "certificatePolicies": {
+                "content": "hash"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "cpNotRaw",
+        "test": {
+            "certificatePolicies": {
+                "content": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "cpNotCustom",
+        "test": {
+            "certificatePolicies": {
+                "content": [
+                    {
+                        "oid": "1.2.3.4.5"
+                    }
+                ],
+                "oid": "1.2.3.4.5"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "cpRawExclusive",
+        "test": {
+            "certificatePolicies": {
+                "content": [
+                    {
+                        "oid": "1.2.3.4.5"
+                    }
+                ],
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "aiaEmpty",
+        "test": {
+            "authorityInformationAccess": {
+                "content": []
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "aiaOne",
+        "test": {
+            "authorityInformationAccess": {
+                "content": [
+                    {
+                        "ocsp": "http://ocsp.server.org:8080"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "aiaMulti",
+        "test": {
+            "authorityInformationAccess": {
+                "content": [
+                    {
+                        "ocsp": "http://ocsp1.server.org:8080"
+                    },
+                    {
+                        "ocsp": "http://ocsp2.server.org:8080"
+                    },
+                    {
+                        "ocsp": "http://ocsp3.server.org:8080"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "aiaRawEmpty",
+        "test": {
+            "authorityInformationAccess": {
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "aiaRawBinary",
+        "test": {
+            "authorityInformationAccess": {
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "aiaNil",
+        "test": {
+            "authorityInformationAccess": {}
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "aiaUnknownKey",
+        "test": {
+            "authorityInformationAccess": {
+                "unknownKey": true
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "aiaBadPrefix",
+        "test": {
+            "authorityInformationAccess": {
+                "content": [
+                    "badprefix:http://ocsp.org"
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "aiaBadExtType",
+        "test": {
+            "authorityInformationAccess": {
+                "content": "hash"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "aiaBadNotRaw",
+        "test": {
+            "authorityInformationAccess": {
+                "content": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "aiaBadNotCustom",
+        "test": {
+            "authorityInformationAccess": {
+                "content": [
+                    {
+                        "ocsp": "http://ocsp1.server.org:8080"
+                    }
+                ],
+                "oid": "1.2.3.4.5"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "aiaRawExclusive",
+        "test": {
+            "authorityInformationAccess": {
+                "content": [
+                    {
+                        "ocsp": "http://ocsp.server.org:8080"
+                    }
+                ],
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "authKeyIdhash",
+        "test": {
+            "authorityKeyIdentifier": {
+                "content": {
+                    "id": "hash"
+                }
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "authKeyIdCrit",
+        "test": {
+            "authorityKeyIdentifier": {
+                "content": {
+                    "id": "hash"
+                },
+                "critical": true
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "authKeyIdIdBinary",
+        "test": {
+            "authorityKeyIdentifier": {
+                "content": {
+                    "id": "!binary:AQIDBA=="
+                }
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "authKeyIdRawEmpty",
+        "test": {
+            "authorityKeyIdentifier": {
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "authKeyIdRawBinary",
+        "test": {
+            "authorityKeyIdentifier": {
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "authKeyIdNull",
+        "test": {
+            "authorityKeyIdentifier": {}
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "authKeyIdNoBody",
+        "test": {
+            "authorityKeyIdentifier": {
+                "critical": true,
+                "optional": false
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "authKeyIdUnknownKey",
+        "test": {
+            "authorityKeyIdentifier": {
+                "content": "hash",
+                "critical": true,
+                "optional": false,
+                "override": true,
+                "unknownKey": true
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "authKeyIdIllegalContent",
+        "test": {
+            "authorityKeyIdentifier": {
+                "content": "blarb",
+                "critical": true,
+                "optional": false,
+                "override": true
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "authKeyIdNotCustom",
+        "test": {
+            "authorityKeyIdentifier": {
+                "content": {
+                    "id": "hash"
+                },
+                "oid": "1.2.3.4.5"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "authKeyIdNotCustom2",
+        "test": {
+            "authorityKeyIdentifier": {
+                "content": {
+                    "id": "hash"
+                },
+                "id": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "authKeyIdRawExclusive",
+        "test": {
+            "authorityKeyIdentifier": {
+                "content": {
+                    "id": "hash"
+                },
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "authKeyIdRawExclusive",
+        "test": {
+            "authorityKeyIdentifier": {
+                "content": {
+                    "id": "hash"
+                },
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "extKeyUsageEmpty",
+        "test": {
+            "extendedKeyUsage": {
+                "content": []
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "extKeyUsageAll",
+        "test": {
+            "extendedKeyUsage": {
+                "content": [],
+                "critical": true,
+                "optional": false,
+                "override": true
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "extKeyUsageSimple",
+        "test": {
+            "extendedKeyUsage": {
+                "content": [
+                    "serverAuth"
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "extKeyUsageCustomOid",
+        "test": {
+            "extendedKeyUsage": {
+                "content": [
+                    "serverAuth",
+                    "1.2.3.4"
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "extKeyUsageAllPlusCustom",
+        "test": {
+            "extendedKeyUsage": {
+                "content": [
+                    "serverAuth",
+                    "1.2.3.4.5.6.7",
+                    "clientAuth",
+                    "codeSigning",
+                    "emailProtection",
+                    "1.2.3",
+                    "timeStamping",
+                    "OCSPSigning"
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "extKeyUsageRawEmpty",
+        "test": {
+            "extendedKeyUsage": {
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "extKeyUsageRawBinary",
+        "test": {
+            "extendedKeyUsage": {
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "extKeyUsageNoContent",
+        "test": {
+            "extendedKeyUsage": {}
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "extKeyUsageUnknownKey",
+        "test": {
+            "extendedKeyUsage": {
+                "unknownKey": true
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "extKeyUsageBadKeyUsage",
+        "test": {
+            "extendedKeyUsage": {
+                "content": [
+                    "badKeyUsage"
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "extKeyUsageBadOid",
+        "test": {
+            "extendedKeyUsage": {
+                "content": [
+                    "1.2..3"
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "extKeyUsageBadExtType",
+        "test": {
+            "extendedKeyUsage": {
+                "content": "hash"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "extKeyUsageBadBinaryContext",
+        "test": {
+            "extendedKeyUsage": {
+                "content": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "extKeyUsageNoCustomOid",
+        "test": {
+            "extendedKeyUsage": {
+                "content": [
+                    "serverAuth"
+                ],
+                "oid": "1.2.3.4.5"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "extKeyUsageNoCustomData",
+        "test": {
+            "extendedKeyUsage": {
+                "content": [
+                    "serverAuth"
+                ],
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "noExtMix1",
+        "test": {
+            "keyUsage": {
+                "content": [
+                    "digitalSignature",
+                    "keyEncipherment"
+                ]
+            },
+            "subjectKeyIdentifier": {
+                "content": "hash"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "noExtMix2",
+        "test": {
+            "basicConstraints": {
+                "content": {
+                    "ca": false
+                }
+            },
+            "subjectAlternativeName": {
+                "content": [
+                    "dns:subscriber@service.org"
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "noExtMix3",
+        "test": {
+            "authorityInformationAccess": {
+                "content": [
+                    "ocsp:http://certificatestatus@service.org"
+                ]
+            },
+            "certificatePolicies": {
+                "content": [
+                    {
+                        "oid": "1.2.3.4.5"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "noExtMix4",
+        "test": {
+            "admission": {
+                "content": [
+                    {
+                        "professionItem": "WHAT IS YOUR PROFESSION?!",
+                        "professionOid": "1.2.3.4.5",
+                        "registrationNumber": "45"
+                    }
+                ]
+            },
+            "authorityKeyIdentifier": {
+                "content": {
+                    "id": "hash"
+                }
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "noExtMix5",
+        "test": {
+            "extendedKeyUsage": {
+                "content": [
+                    "emailProtection"
+                ]
+            },
+            "subjectKeyIdentifier": {
+                "content": "hash"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "noExtMix6",
+        "test": {
+            "extendedKeyUsage": {
+                "content": [
+                    "emailProtection"
+                ]
+            },
+            "custom": {
+                "content": "!binary:AQIDBA==",
+                "oid": "1.2.3.4.5"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "noEmptyExt",
+        "test": {}
+    },
+    {
+        "expectSuccess": false,
+        "name": "noEmptyNestedArray",
+        "test": []
+    },
+    {
+        "expectSuccess": true,
+        "name": "customExt",
+        "test": {
+            "custom": {
+                "oid": "1.2.3.4.5",
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "customExtFull",
+        "test": {
+            "custom": {
+                "critical": true,
+                "oid": "1.2.3.4.5",
+                "optional": false,
+                "override": true,
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "customExtRawEmpty",
+        "test": {
+            "custom": {
+                "oid": "1.2.3.4.5",
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "customExtEmpty",
+        "test": {
+            "custom": {}
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "customExtUnknownKey",
+        "test": {
+            "custom": {
+                "oid": "1.2.3.4.5",
+                "raw": "!binary:AQIDBA==",
+                "unknownKey": true
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "customExtBadOid",
+        "test": {
+            "custom": {
+                "content": {
+                    "oid": "badOid",
+                    "raw": "!binary:AQIDBA=="
+                }
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "customExtBadBinary",
+        "test": {
+            "custom": {
+                "content": {
+                    "oid": "1.2.3.4.5",
+                    "raw": "badContent"
+                }
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "customExtBadCommand",
+        "test": {
+            "custom": {
+                "oid": "1.2.3.4.5",
+                "raw": "!hash"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "customExtIllegalContent",
+        "test": {
+            "custom": {
+                "content": "!binary:AQIDBA==",
+                "oid": "1.2.3.4.5",
+                "raw": "!binary:AQIDBA=="
+            }
+        }
+    }
+]

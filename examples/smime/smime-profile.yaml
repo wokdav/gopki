@@ -1,0 +1,25 @@
+version: 1
+name: smime
+validity:
+  duration: 5y
+extensions:
+  - basicConstraints:
+      critical: true
+      content:
+        ca: false
+  - certificatePolicies:
+      content:
+        - oid: 2.16.840.1.101.3.2.1.48.1
+  - subjectAlternativeName:
+      optional: no
+      override: yes
+  - keyUsage:
+      critical: true
+      content:
+        - digitalSignature
+        - nonRepudiation
+  - subjectKeyIdentifier:
+      content: hash
+  - authorityKeyIdentifier:
+      content:
+        id: hash

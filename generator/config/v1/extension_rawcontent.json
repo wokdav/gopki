@@ -1,0 +1,5 @@
+{
+	"$id": "extension_rawcontent.json",
+	"type": "string",
+	"pattern": "(!empty)|(!binary:[A-Za-z0-9+/=]+)"
+}

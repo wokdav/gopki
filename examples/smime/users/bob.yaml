@@ -1,0 +1,10 @@
+version: 1
+profile: smime
+subject: C=US, O=ACME Ltd., OU=Accounting, CN=Bob McBuilder
+issuer: root
+# bob does not care about security
+extensions:
+  - subjectAlternativeName:
+      content:
+        - type: mail
+          name: bob.mcbuilder@acme.com

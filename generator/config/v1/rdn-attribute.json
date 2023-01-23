@@ -1,0 +1,8 @@
+{
+    "$id": "rdn-attribute.json",
+    "type": "string",
+    "enum": [
+        "C", "CN", "PC", "ST", "L", "STREET", "O", "DC", "OU",
+        "T", "UID", "MAIL", "SERIALNUMBER"
+    ]
+}

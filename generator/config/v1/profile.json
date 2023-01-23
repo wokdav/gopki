@@ -1,0 +1,49 @@
+{
+	"$id": "profile.json",
+	"title": "Certificate Profile Configuration Schema v1",
+	"type": "object",
+	"properties": {
+		"version": {
+			"type": "integer",
+			"description": "Version of the Certificate Profile Config syntax",
+			"enum": [1]
+		},
+		"name": {
+			"type": "string",
+			"description": "Name of the profile, must not be empty.",
+            "pattern": "^[^\r\n]+$"
+		},
+		"subjectAttributes": {
+			"type": "object",
+			"description": "Permissible attributes of the Subject DN. Accepts only the short-form in caps (e.g. CN, but not commonName).",
+			"properties": {
+				"allowOther": {
+					"type": "boolean"
+				},
+				"attributes": {
+					"type": "array",
+					"items": {
+						"type": "object",
+                        "properties": {
+                            "attribute": {"$ref": "rdn-attribute.json"},
+                            "optional": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": ["attribute"]
+					},
+                "minItems": 1
+				}
+			},
+			"required": ["attributes"]
+		},
+		"validity":   { "$ref": "validity.json"},
+		"extensions": {
+			"type": "array",
+			"items": { "$ref": "extension.json" }
+		}
+	},
+	"required": ["version", "name"],
+    "additionalProperties": false
+}

@@ -1,0 +1,68 @@
+{
+    "$id": "certificate.json",
+    "title": "Certificate Configuration Schema v1",
+    "type": "object",
+    "properties": {
+        "version": {
+			"type": "integer",
+			"description": "Version of the Certificate Profile Config syntax",
+			"enum": [1]
+		},
+        "alias": {
+            "type": "string",
+            "description": "A human readable name that may be used for e.g. generating file names. Should be unique under each certificate authority. If omitted, will be set to a string representation of the serial number.",
+            "pattern": "^[^§\\$%&\\?\\*\\|<>]+$"
+        },
+		"profile": {
+			"type": "string",
+			"description": "Name of the profile, must not be empty.",
+            "pattern": "^[^\r\n]+$"
+		},
+        "issuer": {
+            "type": "string"
+        },
+        "subject": {
+            "type": "string",
+            "pattern": "^[A-Z0-9\\.]+=[^,]+([\\ ]*[,][\\ ]*[A-Z0-9\\.]+=[^,]+)*$"
+        },
+        "keyAlgorithm": {
+            "type": "string",
+            "enum": [
+                "RSA-1024",
+                "RSA-2048",
+                "RSA-4096",
+                "RSA-8192",
+                "P-224",
+                "P-256",
+                "P-384",
+                "P-521",
+                "brainpoolP256r1",
+                "brainpoolP384r1",
+                "brainpoolP512r1",
+                "brainpoolP256t1",
+                "brainpoolP384t1",
+                "brainpoolP512t1"
+            ]
+        },
+        "signatureAlgorithm": {
+            "type": "string",
+            "enum": [
+                "RSAwithSHA1",
+                "RSAwithSHA256",
+                "RSAwithSHA384",
+                "RSAwithSHA512",
+                "ECDSAwithSHA1",
+                "ECDSAwithSHA256",
+                "ECDSAwithSHA384",
+                "ECDSAwithSHA512"
+            ]
+        },
+        "validity":   { "$ref": "validity.json" },
+		"extensions": {
+			"type": "array",
+			"items": { "$ref": "extension.json" }
+		}
+    },
+    "additionalProperties": false,
+    "required": ["version", "subject"]
+}

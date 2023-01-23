@@ -1,0 +1,311 @@
+{
+    "$id": "extension.json",
+    "type": "object",
+    "properties": {
+        "subjectKeyIdentifier": {
+            "type": "object",
+            "properties": {
+                "critical": { "type": "boolean" },
+                "optional": { "type": "boolean" },
+                "override": { "type": "boolean" },
+                "raw": { "$ref": "extension_rawcontent.json" },
+                "content":  {
+                    "type": "string",
+                    "pattern": "(hash)|(!binary:[A-Za-z0-9+/=]+)"
+                }
+            },
+            "additionalProperties": false,
+            "anyOf": [
+				{"required": ["override"]},
+				{
+                    "oneOf": [
+                        {"required": ["content"]},
+                        {"required": ["raw"]}
+                    ]
+                }
+			]
+        },
+        "keyUsage": {
+            "type": "object",
+            "properties": {
+                "critical": { "type": "boolean" },
+                "optional": { "type": "boolean" },
+                "override": { "type": "boolean" },
+                "raw": { "$ref": "extension_rawcontent.json" },
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "enum": [
+                            "digitalSignature",
+                            "nonRepudiation",
+                            "keyEncipherment",
+                            "dataEncipherment",
+                            "keyAgreement",
+                            "keyCertSign",
+                            "crlSign"
+                        ]
+                    }
+                }
+            },
+            "additionalProperties": false,
+            "anyOf": [
+				{"required": ["override"]},
+				{
+                    "oneOf": [
+                        {"required": ["content"]},
+                        {"required": ["raw"]}
+                    ]
+                }
+			]
+        },
+        "subjectAlternativeName": {
+            "type": "object",
+            "properties": {
+                "critical": { "type": "boolean" },
+                "optional": { "type": "boolean" },
+                "override": { "type": "boolean" },
+                "raw": { "$ref": "extension_rawcontent.json" },
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "type": {
+                                "enum": ["ip", "dns", "mail"]
+                            },
+                            "name": {
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "additionalProperties": false,
+            "anyOf": [
+				{"required": ["override"]},
+				{
+                    "oneOf": [
+                        {"required": ["content"]},
+                        {"required": ["raw"]}
+                    ]
+                }
+			]
+        },
+        "basicConstraints": {
+            "type": "object",
+            "properties": {
+                "critical": { "type": "boolean" },
+                "optional": { "type": "boolean" },
+                "override": { "type": "boolean" },
+                "raw": { "$ref": "extension_rawcontent.json" },
+                "content": {
+                    "type": "object",
+                    "properties": {
+                        "ca": {
+                            "type": "boolean"
+                        },
+                        "pathLen": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false,
+            "anyOf": [
+				{"required": ["override"]},
+				{
+                    "oneOf": [
+                        {"required": ["content"]},
+                        {"required": ["raw"]}
+                    ]
+                }
+			]
+        },
+        "certificatePolicies": {
+            "type": "object",
+            "properties": {
+                "critical": { "type": "boolean" },
+                "optional": { "type": "boolean" },
+                "override": { "type": "boolean" },
+                "raw": { "$ref": "extension_rawcontent.json" },
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "oid": {"$ref": "oid.json"}
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "additionalProperties": false,
+            "anyOf": [
+				{"required": ["override"]},
+				{
+                    "oneOf": [
+                        {"required": ["content"]},
+                        {"required": ["raw"]}
+                    ]
+                }
+			]
+        },
+        "authorityInformationAccess": {
+            "type": "object",
+            "properties": {
+                "critical": { "type": "boolean" },
+                "optional": { "type": "boolean" },
+                "override": { "type": "boolean" },
+                "raw": { "$ref": "extension_rawcontent.json" },
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "ocsp": {
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "additionalProperties": false,
+            "anyOf": [
+				{"required": ["override"]},
+				{
+                    "oneOf": [
+                        {"required": ["content"]},
+                        {"required": ["raw"]}
+                    ]
+                }
+			]
+        },
+        "authorityKeyIdentifier": {
+            "type": "object",
+            "properties": {
+                "critical": { "type": "boolean" },
+                "optional": { "type": "boolean" },
+                "override": { "type": "boolean" },
+                "raw": { "$ref": "extension_rawcontent.json" },
+                "content":  {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "pattern": "(hash)|(!binary:[A-Za-z0-9+/=]+)"
+
+                        }
+                    },
+                    "additionalProperties": false
+               }
+            },
+            "additionalProperties": false,
+            "anyOf": [
+				{"required": ["override"]},
+				{
+                    "oneOf": [
+                        {"required": ["content"]},
+                        {"required": ["raw"]}
+                    ]
+                }
+			]
+        },
+        "admission": {
+            "type": "object",
+            "properties": {
+                "critical": { "type": "boolean" },
+                "optional": { "type": "boolean" },
+                "override": { "type": "boolean" },
+                "raw": { "$ref": "extension_rawcontent.json" },
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties":{
+                            "professionOid": {"$ref": "oid.json"},
+                            "professionItem": {
+                                "type": "string"
+                            },
+                            "registrationNumber": {
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": ["professionItem"]
+                    }
+                }
+            },
+            "additionalProperties": false,
+            "anyOf": [
+				{"required": ["override"]},
+				{
+                    "oneOf": [
+                        {"required": ["content"]},
+                        {"required": ["raw"]}
+                    ]
+                }
+			]
+        },
+        "extendedKeyUsage": {
+            "type": "object",
+            "properties": {
+                "critical": { "type": "boolean" },
+                "optional": { "type": "boolean" },
+                "override": { "type": "boolean" },
+                "raw": { "$ref": "extension_rawcontent.json" },
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "anyOf": [
+                            {
+                                "type":"string",
+                                "enum": [
+                                    "serverAuth",
+                                    "clientAuth",
+                                    "codeSigning",
+                                    "emailProtection",
+                                    "timeStamping",
+                                    "OCSPSigning"
+                                ]
+                            },
+                            { "$ref": "oid.json" }
+                        ]
+                    }
+                }
+            },
+            "additionalProperties": false,
+            "anyOf": [
+				{"required": ["override"]},
+				{
+                    "oneOf": [
+                        {"required": ["content"]},
+                        {"required": ["raw"]}
+                    ]
+                }
+			]
+        },
+        "custom": {
+            "type": "object",
+            "properties": {
+                "critical": { "type": "boolean" },
+                "optional": { "type": "boolean" },
+                "override": { "type": "boolean" },
+                "raw": { "$ref": "extension_rawcontent.json" },
+                "oid": { "$ref": "oid.json" }
+            },
+            "additionalProperties": false,
+            "anyOf": [
+				{"required": ["override"]},
+				{"required": ["raw"]}
+            ]
+
+        }
+    },
+    "additionalProperties": false,
+    "minProperties": 1,
+    "maxProperties": 1
+}

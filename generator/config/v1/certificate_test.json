@@ -1,0 +1,529 @@
+[
+    {
+        "name": "allValues",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "keyAlgorithm": "P-256",
+            "validity": {
+                "from": "2020-01-01",
+                "duration": "5y"
+            },
+            "extensions": []
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "minimalValues",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "noVersion",
+        "test": {
+            "subject": "C=DE, CN=MyCertificate"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "noSubject",
+        "test": {
+            "version": 1
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "empty",
+        "test": {},
+        "expectSuccess": false
+    },
+    {
+        "name": "unknownKey",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "unknownKey": "weeeeeeeeee"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "badVersionNumberHigh",
+        "test": {
+            "version": 2,
+            "subject": "C=DE, CN=MyCertificate"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "badVersionNumberNegative",
+        "test": {
+            "version": -1,
+            "subject": "C=DE, CN=MyCertificate"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "badVersionNumberString",
+        "test": {
+            "version": "1",
+            "subject": "C=DE, CN=MyCertificate"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "badVersionNumberArray",
+        "test": {
+            "version": [
+                1
+            ],
+            "subject": "C=DE, CN=MyCertificate"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "subjectGood1",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCert"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "subjectGood2",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "subjectGood3",
+        "test": {
+            "version": 1,
+            "subject": "C=DE ,CN=MyCert"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "subjectGood4",
+        "test": {
+            "version": 1,
+            "subject": "C=DE , CN=MyCert"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "subjectGood5",
+        "test": {
+            "version": 1,
+            "subject": "C=DE , CN=MyCert, O=MyOrg"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "subjectGood6",
+        "test": {
+            "version": 1,
+            "subject": "C=DE"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "subjectBad1",
+        "test": {
+            "version": 1,
+            "subject": "C=,CN=MyCert"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "subjectBad2",
+        "test": {
+            "version": 1,
+            "subject": "=DE,CN=MyCert"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "subjectBad3",
+        "test": {
+            "version": 1,
+            "subject": "C = DE"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "subjectBad4",
+        "test": {
+            "version": 1,
+            "subject": "C=D,E, CN=MyCert"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "subjectBad5",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "subjectBad6",
+        "test": {
+            "version": 1,
+            "subject": ",C=DE"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "subjectBad7",
+        "test": {
+            "version": 1,
+            "subject": "="
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "subjectBad8",
+        "test": {
+            "version": 1,
+            "subject": ","
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "subjectBad9",
+        "test": {
+            "version": 1,
+            "subject": "=,="
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "subjectBad10",
+        "test": {
+            "version": 1,
+            "subject": {
+                "attributes": [
+                    {
+                        "attribute": "C"
+                    }
+                ]
+            }
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "subjectBad11",
+        "test": {
+            "version": 1,
+            "subject": {}
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "keyAlgGood1",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "RSA-1024"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood2",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "RSA-2048"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood3",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "RSA-4096"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood4",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "RSA-8192"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood5",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "P-224"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood6",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "P-256"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood7",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "P-384"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood7",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "P-521"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood8",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "brainpoolP256r1"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood9",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "brainpoolP384r1"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood10",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "brainpoolP512r1"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood11",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "brainpoolP256t1"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood12",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "brainpoolP384t1"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgGood13",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "brainpoolP512t1"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "keyAlgBad1",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "RSA-512"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "keyAlgBad2",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": [
+                "RSA-512"
+            ]
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "keyAlgBad3",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": "RSA-2048x"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "keyAlgBad4",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "keyAlgorithm": ""
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "sigAlgGood1",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "signatureAlgorithm": "RSAwithSHA1"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "sigAlgGood2",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "signatureAlgorithm": "RSAwithSHA256"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "sigAlgGood3",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "signatureAlgorithm": "RSAwithSHA384"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "sigAlgGood4",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "signatureAlgorithm": "RSAwithSHA512"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "sigAlgGood5",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "signatureAlgorithm": "ECDSAwithSHA1"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "sigAlgGood6",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "signatureAlgorithm": "ECDSAwithSHA256"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "sigAlgGood7",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "signatureAlgorithm": "ECDSAwithSHA384"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "sigAlgGood8",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "signatureAlgorithm": "ECDSAwithSHA512"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "sigAlgBad1",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "signatureAlgorithm": "RSAwithMD5"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "sigAlgBad2",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "signatureAlgorithm": [
+                "RSAwithSHA1"
+            ]
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "sigAlgBad3",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "signatureAlgorithm": "RSAwithSHA1x"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "sigAlgBad4",
+        "test": {
+            "version": 1,
+            "subject": "C=DE,CN=MyCert",
+            "signatureAlgorithm": ""
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "aliasGood",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "alias": "My Certificate"
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "aliasBadType",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "alias": 15
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "aliasBadContent",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "alias": "\\/%$"
+        },
+        "expectSuccess": false
+    }
+]

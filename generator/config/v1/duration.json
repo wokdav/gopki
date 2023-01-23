@@ -1,0 +1,5 @@
+{
+	"$id": "duration.json",
+	"type": "string",
+	"pattern": "^(([0-9]+)y)?(([0-9]+)m)?(([0-9]+)d)?$"
+}

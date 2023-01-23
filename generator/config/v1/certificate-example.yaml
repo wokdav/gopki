@@ -1,0 +1,184 @@
+# version of the profile configuration
+# (required)
+version: 1
+
+# subject DN of the certificate
+# only shorthand attributes and custom attribute OIDs are recognized.
+# seperator is comma, comma escaping is not supported and spaces may appear
+# between commas.
+#
+# by convention stated in RFC4514, string representations of DNs should
+# reverse the order of the DN attributes. This convention is respected,
+# so the certificate's ASN.1 structure will be reversed.
+#
+# Supported attributes are:
+#   - SERIALNUMBER
+#   - CN
+#   - OU
+#   - O
+#   - STREET
+#   - POSTALCODE
+#   - L
+#   - ST
+#   - C
+#   - custom OIDs in dotted decimal form
+#
+# Custom attributes' values will always be treated as an ASN.1 PrintableString.
+#
+# (required)
+subject: "CN=MyCert, 1.2.3.4=MyOwnAttribute"
+
+# name (aka alias) of the certificate used for referencing issuers
+# explicitly setting this alias is reserved for future use. at the moment,
+# the alias will always be set to the relative file path of the config file,
+# not including the file extension.
+#
+# for example: if you certificate configs are in a folder /my/certs/ with a
+# certificate config file under /my/certs/alice/alice.yaml, the alias will
+# be set to alice/alice.yaml.
+# (optional)
+alias: my-certificate
+
+# alias of the issuing certificate (NOT the issuer DN).
+# a referencing issuer will always sign the certificate, even if the extensions
+# do not denote a valid authority.
+# (optional - certificate is self-signed and self-issued, if left out)
+issuer: my-certificate-authority
+
+# the algorithm of the generated key. may be one of the following:
+#
+# EC Keys:
+#  - P-224
+#  - P-256
+#  - P-384
+#  - P-521
+#  - brainpoolP256r1
+#  - brainpoolP384r1
+#  - brainpoolP512r1
+#  - brainpoolP256t1
+#  - brainpoolP384t1
+#  - brainpoolP512t1
+#
+# RSA Keys:
+#  - RSA-1024
+#  - RSA-2048
+#  - RSA-4096
+#  - RSA-8192
+#
+# (optional - default: P-224)
+keyAlgorithm: P-224
+
+# the algorithm the issuer shall use for the certificte's signature
+# must be appropriate for the issuer's key algorithm.
+# may be one of the following:
+#
+# - RSAwithSHA1
+# - RSAwithSHA256
+# - RSAwithSHA38
+# - RSAwithSHA512
+# - ECDSAwithSHA1
+# - ECDSAwithSHA256
+# - ECDSAwithSHA384
+# - ECDSAwithSHA512
+#
+# (optional - default: ECDSAWithSHA256)
+
+# name of the profile this config is validated against/inherits from.
+# (optional)
+profile: example-profile
+
+# specifies, when the certificate's validity period begins and ends.
+# the beginning is always set via "from". the end may be either defined
+# as an absolute date (using "until") or a time period (using "duration").
+# (optional)
+validity:
+    # from: 2020-01-01 # (optional - default: current time)
+
+    # duration in the form of [Y]y[M]m[D]d, for example: 5y6m2d.
+    # subsets are also allowed.
+    duration: 5y
+
+    # end date in the form of YYYY-MM-DD
+    # until: 2030-01-01
+
+# specifiy the certificate's extensions.
+#
+# note that this is a list where each element contains exactly one extension
+# definition.
+#
+# each content has a "critical" property, which is set to false by default.
+#
+# an extension's content may either be defined through it's "content" attribute, which
+# differs depending on what certificate it is OR through a "raw" attribute,
+# where the extension's content can be set to any arbitrary byte sequence.
+# the only exemption from this are custom extensions, which are always defined
+# through the "raw" attribute.
+#
+# raw attributes are defined by a string, which may take one of the following form
+# - !binary:[BASE64]
+#   Set the content of the extension to the specified byte sequence.
+#   Example: !binary:AQIDBA==
+# - !empty
+#   Set the content to contain 0 bytes.
+# - !null
+#   Set the content to NULL defined by ASN.1
+#
+# the list below specifies every extension recognized by gopki:
+# (optional)
+extensions:
+    - subjectKeyIdentifier:
+        # "hash" will use a hash of the key as the identifier.
+        # the !binary form is also allowed here to set the id manually.
+        content: hash
+    - keyUsage:
+        critical: true # (default: false)
+        # these are all supported flags
+        content:
+          - "digitalSignature"
+          - "nonRepudiation"
+          - "keyEncipherment"
+          - "dataEncipherment"
+          - "keyAgreement"
+          - "keyCertSign"
+          - "crlSign"
+    - subjectAlternativeName:
+        # these are all supported name types
+        content:
+          - type: ip
+            name: 127.0.0.1
+          - type: dns
+            name: server.example.com
+          - type: mail
+            name: admin@example.com
+    - basicConstraints:
+        critical: true
+        content:
+            ca: true # default: false
+            pathLen: 3 # may be omitted
+    - certificatePolicies:
+        content:
+          - oid: 1.2.3.4
+          - oid: 6.1.2.5.5.1.11.2
+    - authorityInformationAccess:
+        # these are all supported access info items
+        content:
+          - ocsp: http://ocsp.example.com
+    - authorityKeyIdentifier:
+        # "hash" will use a hash of the issuer's public key as the identifier.
+        # the !binary form is also allowed here to set the id manually.
+        content:
+          id: hash
+    - extendedKeyUsage:
+        # these are all supported extended key usages
+        content:
+          - serverAuth
+          - clientAuth
+          - codeSigning
+          - emailProtection
+          - timeStamping
+          - OCSPSigning
+    - custom:
+        # define your own extension
+        oid: 1.56.12.4.5
+        critical: true
+        raw: "!binary:AQIDBA=="

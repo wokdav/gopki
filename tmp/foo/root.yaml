@@ -1,0 +1,14 @@
+version: 1
+subject: CN=My Root CA
+validity:
+    duration: 25y
+extensions:
+    - basicConstraints:
+        critical: yes
+        content:
+            ca: true
+    - keyUsage:
+        critical: yes
+        content:
+            - keyCertSign
+

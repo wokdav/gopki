@@ -1,0 +1,18 @@
+version: 1
+subject: C=US, O=ACME Ltd., OU=PKI Department, CN=ACME S/MIME Root-CA
+keyAlgorithm: P-521
+signatureAlgorithm: ECDSAwithSHA512
+validity:
+  duration: 25y
+extensions:
+  - basicConstraints:
+      critical: true
+      content:
+        ca: true
+  - keyUsage:
+      critical: true
+      content:
+        - keyCertSign
+        - crlSign
+  - subjectKeyIdentifier:
+      content: hash

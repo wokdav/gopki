@@ -1,0 +1,13 @@
+version: 1
+profile: smime
+subject: C=US, O=ACME Ltd., OU=Administration, CN=Eddie Edward
+issuer: root
+# eddie is a security nerd
+keyAlgorithm: P-521
+signatureAlgorithm: ECDSAwithSHA512
+extensions:
+  - subjectAlternativeName:
+      content:
+        - type: mail
+          name: eddie.edward@acme.com
+

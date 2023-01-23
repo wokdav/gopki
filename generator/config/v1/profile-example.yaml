@@ -1,0 +1,58 @@
+# version of the profile configuration
+# (required)
+version: 1
+
+# name of the profile that can be referenced in certificate configurations
+# (required)
+name: example-profile
+
+# defines the subject DN attributes that are allowed/required in the certificate config.
+# note that even for optional attributes the order is still validated. If you don't care
+# about a specific attribute, just leave it out and enable allowOther.
+#
+# for a full list of available DN attributes, check the certificate example.
+# (optional - when left out, all subject DNs are accepted)
+subjectAttributes:
+    attributes:
+        - attribute: CN
+        - attribute: C
+          # If optional is false, the certificate must provide the attribute
+          optional: true # default: false
+
+    # If allowOther is false, the certificate may define additional
+    # attributes not present in this list.
+    allowOther: true # default: false
+
+# specify the validity period. any referencing certificate will then inherit this
+# validity period, if it doesn't define one itself.
+# for more info on this property, check the certificate example.
+# (optional)
+validity:
+    duration: 5y
+
+# specify certificate extensions each referencing certificate may inherit.
+# for a full list of supported extensions, check the certificate example.
+#
+# a certificate will inherit its profile's extension, if
+#   1. the extension is not optional and
+#   2. the certificate does not define an identical extension itself
+#
+# when building a certificates, the extensions inherited from the profile will
+# always appear first.
+#
+# a profile may pre-define the content of any extension or it may leave it out.
+# in the latter case the certificate must override the extension, otherwise
+# the extension is undefined and the build will fail.
+# (optional)
+extensions:
+    - subjectKeyIdentifier:
+        content: hash
+        optional: true # default: false
+    - subjectAlternativeName:
+        # content is missing here, the certificate has to override this extension
+        override: true # default: false
+    - basicConstraints:
+        critical: true
+        content:
+            ca: false
+
