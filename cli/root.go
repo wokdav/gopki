@@ -5,6 +5,7 @@ import (
 	"gopki/generator/config"
 	"gopki/generator/db"
 	"gopki/generator/db/filesystem"
+	"gopki/logging"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -23,6 +24,13 @@ configured to ensure that your certificates conform to your standards.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if debug {
+			logging.Initialize(logging.LevelDebug, nil, nil)
+		} else if verbose {
+			logging.Initialize(logging.LevelInfo, nil, nil)
+		}
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -41,10 +49,14 @@ type signContext struct {
 	genNewerConfig *bool
 }
 
-// TODO: add logging for verbose argument
-func init() {
-	ctx := signContext{}
+var verbose bool
+var debug bool
 
+func init() {
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "a LOT more verbose output (overrides -v)")
+
+	ctx := signContext{}
 	cmdSign := cobra.Command{
 		Use:   "sign",
 		Short: "(Re-)sign certificates",

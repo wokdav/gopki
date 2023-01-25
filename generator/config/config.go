@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"gopki/generator/cert"
+	"gopki/logging"
 	"io"
 	"strings"
 	"time"
@@ -279,8 +280,11 @@ func Validate(profile CertificateProfile, content CertificateContent) bool {
 				break
 			}
 
+			// TODO: Custom attribute OIDs are not supported for validation yet
 			wantAt, err := GetRdnAttributeOid(profile.SubjectAttributes.Attributes[wantAttribute].Attribute)
 			if err != nil {
+				logging.Warningf("profile violation: can't resolve %v to a known attribute OID",
+					profile.SubjectAttributes.Attributes[wantAttribute].Attribute)
 				return false
 			}
 
@@ -291,12 +295,15 @@ func Validate(profile CertificateProfile, content CertificateContent) bool {
 				if profile.SubjectAttributes.AllowOther {
 					haveAttribute++
 				} else {
+					logging.Warningf("profile violation: expected %v at this position, but got %v and allowOther is false",
+						wantAt, subject[haveAttribute][0].Type)
 					return false
 				}
 			}
 		}
 
 		if haveAttribute < len(content.Subject) && !profile.SubjectAttributes.AllowOther {
+			logging.Warningf("profile violation: provided number of attributes larger than specified in profile while allowOther is false")
 			return false
 		}
 	}

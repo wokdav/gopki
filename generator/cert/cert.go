@@ -380,7 +380,7 @@ func resolveCurve(alg KeyAlgorithm) ([]byte, elliptic.Curve, error) {
 		curveParam, _ = asn1.Marshal(oidBrainpoolP512t1)
 		curve = brainpool.P512t1()
 	default:
-		err = fmt.Errorf("x509: incompatible key algorithm for ECDSA: %v", alg)
+		err = fmt.Errorf("cert: incompatible key algorithm for ECDSA: %v", alg)
 	}
 
 	return curveParam, curve, err
@@ -427,7 +427,7 @@ func NewCertificateContext(subject pkix.RDNSequence, keyAlg KeyAlgorithm, ext []
 		case RSA8192:
 			bitSize = 8192
 		default:
-			return nil, fmt.Errorf("x509: incompatible key algorithm for RSA: %v", keyAlg)
+			return nil, fmt.Errorf("cert: incompatible key algorithm for RSA: %v", keyAlg)
 		}
 
 		prkTmp, err = rsa.GenerateKey(defaultRandom, bitSize)
@@ -516,7 +516,7 @@ func resolveAlg(alg SignatureAlgorithm) (crypto.Hash, hash.Hash, asn1.ObjectIden
 		sigAlgOid = oidECDSAWithSHA512
 		wantKey = ecKey
 	default:
-		err = fmt.Errorf("x509: unknown signature algorithm :'%v'", alg)
+		err = fmt.Errorf("cert: unknown signature algorithm :'%v'", alg)
 	}
 
 	return hashAlgId, hashAlg, sigAlgOid, wantKey, err
@@ -579,7 +579,7 @@ func (c *CertificateContext) Sign(alg SignatureAlgorithm) (*Certificate, error) 
 	if wantKey == ecKey {
 		ecdsaPrk, ok := c.Issuer.PrivateKey.(*ecdsa.PrivateKey)
 		if !ok {
-			return nil, errors.New("x509: provided key is not ECDSA compatible")
+			return nil, errors.New("cert: provided key is not ECDSA compatible")
 		}
 
 		signature, err = ecdsa.SignASN1(defaultRandom, ecdsaPrk, digest)
@@ -589,7 +589,7 @@ func (c *CertificateContext) Sign(alg SignatureAlgorithm) (*Certificate, error) 
 	} else if wantKey == rsaKey {
 		rsaPrk, ok := c.Issuer.PrivateKey.(*rsa.PrivateKey)
 		if !ok {
-			return nil, errors.New("x509: provided key is not RSA compatible")
+			return nil, errors.New("cert: provided key is not RSA compatible")
 		}
 
 		signature, err = rsa.SignPKCS1v15(defaultRandom, rsaPrk, hashAlgId, digest)

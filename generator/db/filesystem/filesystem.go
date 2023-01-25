@@ -26,6 +26,7 @@ import (
 	"gopki/generator/cert"
 	"gopki/generator/config"
 	"gopki/generator/db"
+	"gopki/logging"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -116,6 +117,9 @@ type FsDb struct {
 	subscribersOf map[string][]string //gets all subordinate aliases for the key alias
 }
 
+// TODO: File system db is very fragile. Maybe keep the alias as a symbolic name and infer
+//       The actual file name when going through the directory
+
 // Create a new file system database based on the provided implementation.
 // This function pre-allocates about 2K+ KB of arrays to minimize re-allocation,
 // so it should be used consciously.
@@ -151,6 +155,8 @@ func (fsdb *FsDb) checkConsistency() error {
 		return errors.New(sb.String())
 	}
 
+	logging.Info("db check finished: no missing certificates in database")
+
 	return nil
 }
 
@@ -158,6 +164,7 @@ func (fsdb *FsDb) checkConsistency() error {
 // TODO: make sure that subordinates are re-generated, if the certificate above changes
 func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n certNode) (bool, error) {
 	if strat&db.GenerateAlways > 0 {
+		logging.Debugf("%v needs update. reson: GenerateAlways is set", n.CertificateContent.Alias)
 		return true, nil
 	}
 
@@ -179,6 +186,8 @@ func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n certNode) (bool, error)
 		}
 
 		if infoCfg.ModTime().After(infoPem.ModTime()) {
+			logging.Debugf("%v needs update. reson: GenerateNeweConfig is set and config modTime [%v] > cert modTime [%v]",
+				n.CertificateContent.Alias, infoCfg.ModTime(), infoPem.ModTime())
 			return true, nil
 		}
 	}
@@ -191,6 +200,7 @@ func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n certNode) (bool, error)
 	if strat&db.GenerateMissing > 0 {
 		_, err := statFs.Stat(certfilename)
 		if err != nil && errors.Is(err, fs.ErrNotExist) {
+			logging.Debugf("%v needs update. reson: GenerateMissing is set and Stat returned ErrNotExist", n.CertificateContent.Alias)
 			return true, nil
 		}
 	}
@@ -199,14 +209,17 @@ func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n certNode) (bool, error)
 }
 
 func (fsdb *FsDb) importContext(certFile string) (*cert.CertificateContext, error) {
+	logging.Debugf("attempting to import certificate in '%v'", certFile)
 	certfi, err := fsdb.filesystem.Fs().Open(certFile)
 	if err != nil {
+		logging.Errorf("import failed: %v", err)
 		return nil, fmt.Errorf("filesystem: unable to open '%v.pem for reading'", certFile)
 	}
 	defer certfi.Close()
 
 	cer, key, err := cert.ImportPem(certfi)
 	if err != nil {
+		logging.Errorf("import failed: %v", err)
 		return nil, err
 	}
 
@@ -221,6 +234,7 @@ func (fsdb *FsDb) importContext(certFile string) (*cert.CertificateContext, erro
 }
 
 func validateAndMerge(fsdb *FsDb, node *certNode) error {
+	logging.Debugf("validating and merging %v with profile %v", node.configFileName, node.CertificateContent.Profile)
 	if len(node.CertificateContent.Profile) > 0 {
 		profile, ok := fsdb.profiles[node.CertificateContent.Profile]
 		if !ok {
@@ -228,10 +242,14 @@ func validateAndMerge(fsdb *FsDb, node *certNode) error {
 				node.configFileName, node.CertificateContent.Profile)
 		}
 
+		logging.Debugf("profile %v was found", node.CertificateContent.Profile)
+
 		if !config.Validate(profile, node.CertificateContent) {
 			return fmt.Errorf("filesystem: '%s' does not validate against profile '%s'",
 				node.configFileName, node.CertificateContent.Profile)
 		}
+
+		logging.Debug("validation was successful")
 
 		newContent, err := config.Merge(profile, node.CertificateContent)
 		if err != nil {
@@ -239,6 +257,8 @@ func validateAndMerge(fsdb *FsDb, node *certNode) error {
 				node.configFileName, node.CertificateContent.Profile,
 				err)
 		}
+
+		logging.Debug("profile data merge was successful")
 
 		node.CertificateContent = *newContent
 	}
@@ -255,10 +275,12 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 	for i < len(todo) {
 		alias := todo[i]
 		i++
+		logging.Debugf("currently working on %v (item %v/%v of our to-do list)", alias, i, len(todo))
 
 		//add subscribers to todo list
 		subs, exists := fsdb.subscribersOf[alias]
 		if exists {
+			logging.Debugf("%v signs %v more certificates. adding them to our to-do list", alias, len(subs))
 			todo = append(todo, subs...)
 		}
 
@@ -270,7 +292,7 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 		}
 
 		if !update {
-			//read certificate instead to have complete database
+			logging.Debugf("%v does not need an update, so we import so we have it in our db", alias)
 			node.CertificateContext, err = fsdb.importContext(alias + ".pem")
 			if err != nil {
 				return certsGenerated, err
@@ -283,6 +305,7 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 			return certsGenerated, err
 		}
 
+		logging.Debugf("generating new certificate body for %v", alias)
 		ctx, err := generator.BuildCertBody(node.CertificateContent)
 		if err != nil {
 			return certsGenerated, err
@@ -291,6 +314,7 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 		node.CertificateContext = ctx
 
 		if len(node.CertificateContent.Issuer) > 0 {
+			logging.Debugf("issuer property for %v is set", alias)
 			issuer := fsdb.certNodes[node.CertificateContent.Issuer]
 			issuerCtx := cert.AsIssuer(*issuer.CertificateContext)
 
@@ -303,6 +327,7 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 		}
 
 		//sign
+		logging.Debugf("signing certificate for %v", alias)
 		crt, err := node.CertificateContext.Sign(node.CertificateContent.SignatureAlgorithm)
 		if err != nil {
 			return certsGenerated, err
@@ -320,7 +345,9 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 			return certsGenerated, err
 		}
 
-		err = fsdb.filesystem.WriteFile(alias+".pem", bb.Bytes())
+		fname := alias + ".pem"
+		logging.Debugf("writing %v", fname)
+		err = fsdb.filesystem.WriteFile(fname, bb.Bytes())
 		if err != nil {
 			return certsGenerated, err
 		}
@@ -328,6 +355,7 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 		certsGenerated++
 	}
 
+	logging.Infof("generation finished. %d certs generated", certsGenerated)
 	return certsGenerated, nil
 }
 
@@ -344,6 +372,8 @@ func (fsdb *FsDb) Update(strat db.UpdateStrategy) error {
 	if len(fsdb.rootAliases) == 0 {
 		return errors.New("filesystem: no root certificates to sign with")
 	}
+
+	logging.Debugf("found %v root certificate aliases in database", len(fsdb.rootAliases))
 
 	n, err := fsdb.updateChains(fsdb.rootAliases, strat)
 	if err != nil {
@@ -368,13 +398,16 @@ func (fsdb *FsDb) Update(strat db.UpdateStrategy) error {
 // the certificate hierarchy. It does not just open a file descriptor, as the name might
 // suggest.
 func (fsdb *FsDb) Open() error {
+	logging.Debug("scanning folder for config files")
 	err := fs.WalkDir(fsdb.filesystem.Fs(), ".", func(path string, d fs.DirEntry, err error) error {
+		logging.Debugf("considering dir entry '%v'", path)
 		if err != nil {
 			return err
 		}
 
 		//directory? pass.
 		if d.Type().IsDir() {
+			logging.Debugf("skipping. reason: directory")
 			return nil
 		}
 
@@ -382,6 +415,7 @@ func (fsdb *FsDb) Open() error {
 		lname := strings.ToLower(d.Name())
 		if !(strings.HasSuffix(lname, ".yaml") || strings.HasSuffix(lname, ".yml") ||
 			strings.HasSuffix(lname, ".json")) {
+			logging.Debugf("skipping. reason: not a recognized file suffix for yaml/json")
 			return nil
 		}
 
@@ -399,13 +433,17 @@ func (fsdb *FsDb) Open() error {
 		//do we have a certificate...?
 		certContent, ok := cfg.(*config.CertificateContent)
 		if ok {
+			logging.Debugf("certificate recognized")
+
 			//default alias is the filename
 			if len(certContent.Alias) == 0 {
 				newAlias := path[:strings.LastIndex(path, ".")]
 				certContent.Alias = newAlias
+				logging.Debugf("alias is not set. setting it to '%v'", newAlias)
 			}
 
 			baseName := path[:strings.LastIndex(path, ".")]
+
 			baseName += certContent.Alias
 
 			fsdb.certNodes[certContent.Alias] = &certNode{
@@ -416,14 +454,18 @@ func (fsdb *FsDb) Open() error {
 
 			if len(certContent.Issuer) == 0 {
 				//is root? -> note
+				logging.Debugf("we have a root certificate. adding it to root list")
 				fsdb.rootAliases = append(fsdb.rootAliases, certContent.Alias)
 			} else {
 				//has issuer? -> remember relation
+				logging.Debugf("we have a non-root certificate [issuer alias=%v]", certContent.Issuer)
 				_, exists := fsdb.subscribersOf[certContent.Issuer]
 				if !exists {
+					logging.Debugf("issuer '%v' is unknown (right now), so we initialize the issuer list", certContent.Issuer)
 					fsdb.subscribersOf[certContent.Issuer] = make([]string, 0, 64)
 				}
 
+				logging.Debugf("'%v' ==is=signed=by==> '%v'", certContent.Alias, certContent.Issuer)
 				fsdb.subscribersOf[certContent.Issuer] =
 					append(fsdb.subscribersOf[certContent.Issuer], certContent.Alias)
 			}
@@ -433,12 +475,15 @@ func (fsdb *FsDb) Open() error {
 		//...or a profile?
 		profileContent, ok := cfg.(*config.CertificateProfile)
 		if ok {
+			logging.Debugf("profile recognized")
 			fsdb.profiles[profileContent.Name] = *profileContent
 			return nil
 		}
 
 		panic(fmt.Errorf("filesystem: file '%s' can neither be casted as a profile nor as a certificate config, even though parsing was successful", path))
 	})
+
+	logging.Infof("found %v cert configs (containing %v root configs) and %v cert profiles", len(fsdb.certNodes), len(fsdb.profiles), len(fsdb.rootAliases))
 
 	return err
 }
