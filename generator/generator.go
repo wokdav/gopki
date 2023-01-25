@@ -9,6 +9,7 @@ package generator
 import (
 	"gopki/generator/cert"
 	"gopki/generator/config"
+	"gopki/logging"
 )
 
 // Returns a [cert.CertificateContext] that corresponds to the supplied
@@ -22,12 +23,14 @@ func BuildCertBody(c config.CertificateContent) (*cert.CertificateContext, error
 	for i, extCfg := range c.Extensions {
 		extBuild[i], err = extCfg.Builder()
 		if err != nil {
+			logging.Errorf("can't build extension #%d for '%v': %v", i, c.Alias, err.Error())
 			return nil, err
 		}
 	}
 	ctx, err := cert.NewCertificateContext(c.Subject, c.KeyAlgorithm, extBuild,
 		c.ValidFrom, c.ValidUntil)
 	if err != nil {
+		logging.Errorf("can't create certificate context for %v: %v", c.Alias, err.Error())
 		return nil, err
 	}
 

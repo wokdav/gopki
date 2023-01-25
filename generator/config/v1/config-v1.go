@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"gopki/generator/cert"
 	"gopki/generator/config"
+	"gopki/logging"
 	"regexp"
 	"strconv"
 	"strings"
@@ -72,6 +73,8 @@ const (
 	fileTypeCertConfig
 	fileTypeCertProfile
 )
+
+// TODO: Put default into v1 struct
 
 // The implementor of [config.Configurator] for version 1.
 type V1Configurator struct{}
@@ -165,10 +168,12 @@ func inferDefaults(v *CertValidity) bool {
 	}
 
 	if len(v.From) == 0 {
+		logging.Debug("'from' is missing. setting to current time")
 		v.From = time.Now().Local().Format(dateForm)
 	}
 
 	if len(v.Until) == 0 && len(v.Duration) == 0 {
+		logging.Debug("'until' and 'duration' are missing. setting to current time + 5y")
 		v.Until = time.Now().Local().AddDate(5, 0, 0).Format(dateForm)
 	}
 
@@ -198,6 +203,9 @@ func initProfile(p Profile) (*config.CertificateProfile, error) {
 			return nil, err
 		}
 	}
+
+	logging.Debugf("effective 'from' time value: %v", out.ValidFrom)
+	logging.Debugf("effective 'to' time value: %v", out.ValidUntil)
 
 	out.Extensions, err = parseExtensions(p.Extensions)
 	if err != nil {
@@ -348,14 +356,14 @@ func initCertificate(c CertConfig) (*config.CertificateContent, error) {
 	if len(c.KeyAlgorithm) > 0 {
 		out.KeyAlgorithm, ok = keyAlgorithms[c.KeyAlgorithm]
 		if !ok {
-			return nil, fmt.Errorf("x509: unknown key algorithm '%v'", c.KeyAlgorithm)
+			return nil, fmt.Errorf("config-v1: unknown key algorithm '%v'", c.KeyAlgorithm)
 		}
 	}
 
 	if len(c.SignatureAlgorithm) > 0 {
 		out.SignatureAlgorithm, ok = sigAlgorithms[c.SignatureAlgorithm]
 		if !ok {
-			return nil, fmt.Errorf("x509: unknown signature algorithm '%v'", c.SignatureAlgorithm)
+			return nil, fmt.Errorf("config-v1: unknown signature algorithm '%v'", c.SignatureAlgorithm)
 		}
 	} else {
 		if strings.HasPrefix(c.KeyAlgorithm, "RSA") {
