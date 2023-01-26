@@ -53,7 +53,7 @@ func Initialize(l LogLevel, logWriter io.Writer, errWriter io.Writer) {
 	}
 
 	if errWriter == nil {
-		logWriter = os.Stderr
+		errWriter = os.Stderr
 	}
 
 	out := logger{
