@@ -135,6 +135,23 @@ func TestSubjKeyIdRaw(t *testing.T) {
 	buildAndCompare(extCfg, extExpect, t)
 }
 
+func TestSubjKeyIdNull(t *testing.T) {
+	//AQIDBA== (0x01020304)
+	extCfg := SubjectKeyIdentifier{
+		Critical: true,
+		Raw:      "!null",
+	}
+
+	oid, _ := cert.GetOid(cert.OidExtensionSubjectKeyId)
+	extExpect := pkix.Extension{
+		Id:       oid,
+		Critical: true,
+		Value:    asn1.NullBytes,
+	}
+
+	buildAndCompare(extCfg, extExpect, t)
+}
+
 func TestSubjKeyIdIdBadCustomId(t *testing.T) {
 	extCfg := SubjectKeyIdentifier{
 		Critical: true,
@@ -240,6 +257,22 @@ func TestKeyUsageRaw(t *testing.T) {
 		Id:       oid,
 		Critical: true,
 		Value:    []byte{0x01, 0x02, 0x03, 0x04},
+	}
+
+	buildAndCompare(extCfg, extExpect, t)
+}
+
+func TestKeyUsageNull(t *testing.T) {
+	extCfg := KeyUsage{
+		Critical: true,
+		Raw:      "!null",
+	}
+
+	oid, _ := cert.GetOid(cert.OidExtensionKeyUsage)
+	extExpect := pkix.Extension{
+		Id:       oid,
+		Critical: true,
+		Value:    asn1.NullBytes,
 	}
 
 	buildAndCompare(extCfg, extExpect, t)
@@ -385,6 +418,22 @@ func TestSubjAltNameRaw(t *testing.T) {
 	buildAndCompare(extCfg, extExpect, t)
 }
 
+func TestSubjAltNameNull(t *testing.T) {
+	extCfg := SubjectAltName{
+		Critical: true,
+		Raw:      "!null",
+	}
+
+	oid, _ := cert.GetOid(cert.OidExtensionSubjectAltName)
+	extExpect := pkix.Extension{
+		Id:       oid,
+		Critical: true,
+		Value:    asn1.NullBytes,
+	}
+
+	buildAndCompare(extCfg, extExpect, t)
+}
+
 func TestSubjAltNameNoContent(t *testing.T) {
 	extCfg := SubjectAltName{
 		Critical: true,
@@ -478,6 +527,22 @@ func TestBasicConstraintsRaw(t *testing.T) {
 	buildAndCompare(extCfg, extExpect, t)
 }
 
+func TestBasicConstraintsNull(t *testing.T) {
+	extCfg := BasicConstraints{
+		Critical: true,
+		Raw:      "!null",
+	}
+
+	oid, _ := cert.GetOid(cert.OidExtensionBasicConstraints)
+	extExpect := pkix.Extension{
+		Id:       oid,
+		Critical: true,
+		Value:    asn1.NullBytes,
+	}
+
+	buildAndCompare(extCfg, extExpect, t)
+}
+
 func TestBasicConstraintsBadRaw(t *testing.T) {
 	extCfg := SubjectAltName{
 		Critical: true,
@@ -496,10 +561,10 @@ func TestCertPolicies(t *testing.T) {
 		Content:  []CertPolicy{{Oid: "1.2.3.4"}},
 	}
 
-	extExpect := cert.NewCertificatePolicies(true,
+	extExpect, _ := cert.NewCertificatePolicies(true,
 		[]cert.PolicyInfo{{ObjectIdentifier: asn1.ObjectIdentifier{1, 2, 3, 4}}})
 
-	buildAndCompare(extCfg, extExpect, t)
+	buildAndCompare(extCfg, *extExpect, t)
 }
 
 func TestCertPoliciesOid(t *testing.T) {
@@ -527,6 +592,22 @@ func TestCertPoliciesRaw(t *testing.T) {
 		Id:       oid,
 		Critical: true,
 		Value:    []byte{0x01, 0x02, 0x03, 0x04},
+	}
+
+	buildAndCompare(extCfg, extExpect, t)
+}
+
+func TestCertPoliciesNull(t *testing.T) {
+	extCfg := CertPolicies{
+		Critical: true,
+		Raw:      "!null",
+	}
+
+	oid, _ := cert.GetOid(cert.OidExtensionCertificatePolicies)
+	extExpect := pkix.Extension{
+		Id:       oid,
+		Critical: true,
+		Value:    asn1.NullBytes,
 	}
 
 	buildAndCompare(extCfg, extExpect, t)
@@ -619,6 +700,23 @@ func TestAiaRaw(t *testing.T) {
 		Id:       oid,
 		Critical: true,
 		Value:    []byte{0x01, 0x02, 0x03, 0x04},
+	}
+
+	buildAndCompare(extCfg, extExpect, t)
+}
+
+func TestAiaNull(t *testing.T) {
+	//AQIDBA== (0x01020304)
+	extCfg := AuthInfoAccess{
+		Critical: true,
+		Raw:      "!null",
+	}
+
+	oid, _ := cert.GetOid(cert.OidExtensionAuthorityInfoAccess)
+	extExpect := pkix.Extension{
+		Id:       oid,
+		Critical: true,
+		Value:    asn1.NullBytes,
 	}
 
 	buildAndCompare(extCfg, extExpect, t)
@@ -725,6 +823,22 @@ func TestAuthKeyIdRaw(t *testing.T) {
 		Id:       oid,
 		Critical: true,
 		Value:    []byte{0x01, 0x02, 0x03, 0x04},
+	}
+
+	buildAndCompare(extCfg, extExpect, t)
+}
+
+func TestAuthKeyIdNull(t *testing.T) {
+	extCfg := AuthKeyId{
+		Critical: true,
+		Raw:      "!null",
+	}
+
+	oid, _ := cert.GetOid(cert.OidExtensionAuthorityKeyId)
+	extExpect := pkix.Extension{
+		Id:       oid,
+		Critical: true,
+		Value:    asn1.NullBytes,
 	}
 
 	buildAndCompare(extCfg, extExpect, t)
@@ -850,6 +964,22 @@ func TestExtKeyUsageRaw(t *testing.T) {
 		Id:       oid,
 		Critical: true,
 		Value:    []byte{0x01, 0x02, 0x03, 0x04},
+	}
+
+	buildAndCompare(extCfg, extExpect, t)
+}
+
+func TestExtKeyUsageNull(t *testing.T) {
+	extCfg := ExtKeyUsage{
+		Critical: true,
+		Raw:      "!null",
+	}
+
+	oid, _ := cert.GetOid(cert.OidExtensionExtendedKeyUsage)
+	extExpect := pkix.Extension{
+		Id:       oid,
+		Critical: true,
+		Value:    asn1.NullBytes,
 	}
 
 	buildAndCompare(extCfg, extExpect, t)

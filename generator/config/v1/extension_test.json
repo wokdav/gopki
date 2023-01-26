@@ -31,6 +31,16 @@
     {
         "expectSuccess": true,
         "skipParserCheck": true,
+        "name": "subjKeyIdNull",
+        "test": {
+            "subjectKeyIdentifier": {
+                "raw": "!null"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
         "name": "subjKeyIdEmpty",
         "test": {
             "subjectKeyIdentifier": {
@@ -158,6 +168,16 @@
         "test": {
             "keyUsage": {
                 "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "keyUsageNull",
+        "test": {
+            "keyUsage": {
+                "raw": "!null"
             }
         }
     },
@@ -386,6 +406,16 @@
     {
         "expectSuccess": true,
         "skipParserCheck": true,
+        "name": "subjAltNameNull",
+        "test": {
+            "subjectAlternativeName": {
+                "raw": "!null"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
         "name": "subjAltNameRawBinary",
         "test": {
             "subjectAlternativeName": {
@@ -533,6 +563,16 @@
         "test": {
             "basicConstraints": {
                 "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "bcNull",
+        "test": {
+            "basicConstraints": {
+                "raw": "!null"
             }
         }
     },
@@ -689,11 +729,138 @@
     },
     {
         "expectSuccess": true,
+        "name": "cpQualifiersCps",
+        "test": {
+            "certificatePolicies": {
+                "content": [
+                    {
+                        "oid": "1.2.3.4.5",
+                        "qualifiers": [
+                            {
+                                "cps": "my.example.com/cps.pdf"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "cpQualifiersUserNoticeMinimal",
+        "test": {
+            "certificatePolicies": {
+                "content": [
+                    {
+                        "oid": "1.2.3.4.5",
+                        "qualifiers": [
+                            {
+                                "userNotice": {
+                                    "organization": "example org",
+                                    "numbers": [
+                                        1,
+                                        2,
+                                        3,
+                                        4
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "cpQualifiersUserNoticeAmbiguous",
+        "test": {
+            "certificatePolicies": {
+                "content": [
+                    {
+                        "oid": "1.2.3.4.5",
+                        "qualifiers": [
+                            {
+                                "cps": "my.example.com/cps.pdf",
+                                "userNotice": {
+                                    "organization": "example org",
+                                    "numbers": [
+                                        1,
+                                        2,
+                                        3,
+                                        4
+                                    ],
+                                    "text": "my text"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "cpQualifiersUserNoticeFull",
+        "test": {
+            "certificatePolicies": {
+                "content": [
+                    {
+                        "oid": "1.2.3.4.5",
+                        "qualifiers": [
+                            {
+                                "userNotice": {
+                                    "organization": "example org",
+                                    "numbers": [
+                                        1,
+                                        2,
+                                        3,
+                                        4
+                                    ],
+                                    "text": "my text"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "cpQualifiersUserNoticeEmpty",
+        "test": {
+            "certificatePolicies": {
+                "content": [
+                    {
+                        "oid": "1.2.3.4.5",
+                        "qualifiers": [
+                            {
+                                "userNotice": {}
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
         "skipParserCheck": true,
         "name": "cpRawEmpty",
         "test": {
             "certificatePolicies": {
                 "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "cpNull",
+        "test": {
+            "certificatePolicies": {
+                "raw": "!null"
             }
         }
     },
@@ -837,6 +1004,16 @@
     {
         "expectSuccess": true,
         "skipParserCheck": true,
+        "name": "aiaNull",
+        "test": {
+            "authorityInformationAccess": {
+                "raw": "!null"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
         "name": "aiaRawBinary",
         "test": {
             "authorityInformationAccess": {
@@ -964,6 +1141,16 @@
     {
         "expectSuccess": true,
         "skipParserCheck": true,
+        "name": "authKeyIdNull",
+        "test": {
+            "authorityKeyIdentifier": {
+                "raw": "!null"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
         "name": "authKeyIdRawBinary",
         "test": {
             "authorityKeyIdentifier": {
@@ -1051,6 +1238,18 @@
     },
     {
         "expectSuccess": false,
+        "name": "authKeyIdNull",
+        "test": {
+            "authorityKeyIdentifier": {
+                "content": {
+                    "id": "hash"
+                },
+                "raw": "!null"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
         "name": "authKeyIdRawExclusive",
         "test": {
             "authorityKeyIdentifier": {
@@ -1130,6 +1329,16 @@
         "test": {
             "extendedKeyUsage": {
                 "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "skipParserCheck": true,
+        "name": "extKeyUsageNull",
+        "test": {
+            "extendedKeyUsage": {
+                "raw": "!null"
             }
         }
     },
@@ -1361,6 +1570,16 @@
             "custom": {
                 "oid": "1.2.3.4.5",
                 "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "customExtNull",
+        "test": {
+            "custom": {
+                "oid": "1.2.3.4.5",
+                "raw": "!null"
             }
         }
     },

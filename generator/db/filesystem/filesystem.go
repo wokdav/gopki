@@ -155,7 +155,7 @@ func (fsdb *FsDb) checkConsistency() error {
 		return errors.New(sb.String())
 	}
 
-	logging.Info("db check finished: no missing certificates in database")
+	logging.Debug("db check finished: no missing certificates in database")
 
 	return nil
 }
@@ -352,6 +352,12 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 			return certsGenerated, err
 		}
 
+		if len(node.CertificateContent.Issuer) == 0 {
+			logging.Infof("%v[%v]: %v", node.CertificateContent.Alias, fname, node.CertificateContext.Subject.String())
+		} else {
+			logging.Infof("%v->%v[%v]: %v", node.CertificateContent.Issuer, node.CertificateContent.Alias, fname, node.CertificateContext.Subject.String())
+		}
+
 		certsGenerated++
 	}
 
@@ -427,7 +433,9 @@ func (fsdb *FsDb) Open() error {
 
 		cfg, err := config.ParseConfig(fi)
 		if err != nil {
-			return fmt.Errorf("filesystem: error parsing %v: %v", d.Name(), err.Error())
+			logging.Infof("skipping %v due to parsing error", d.Name())
+			//return fmt.Errorf("filesystem: error parsing %v: %v", d.Name(), err.Error())
+			return nil
 		}
 
 		//do we have a certificate...?

@@ -149,7 +149,6 @@ type ExtensionConfig interface {
 	Builder() (cert.ExtensionBuilder, error)
 }
 
-// TODO: Add support for escaping commas
 var attributeTypeNames = map[string]asn1.ObjectIdentifier{
 	"C":            {2, 5, 4, 6},
 	"O":            {2, 5, 4, 10},
@@ -172,7 +171,23 @@ var attributeTypeNames = map[string]asn1.ObjectIdentifier{
 //   - custom OIDs are supported, but the values is always interpreted as a string, and
 //     not as #[DER-SEQUENCE] as RFC4514 demands. This is done for simplicity and ease of configuration
 func ParseRDNSequence(s string) (pkix.RDNSequence, error) {
-	assertions := strings.Split(s, ",")
+	assertions := make([]string, 0, strings.Count(s, ","))
+
+	//split along commas, make sure to skip escapes
+	assertBegin := 0
+	for i, symbol := range s {
+		if i == 0 {
+			continue
+		}
+
+		//we know these specific chars are 1-byte values in utf-8
+		//so comparing the byte directly is fine.
+		if symbol == ',' && s[i-1] != '\\' {
+			assertions = append(assertions, s[assertBegin:i])
+			assertBegin = i + 1
+		}
+	}
+	assertions = append(assertions, s[assertBegin:])
 
 	out := make([]pkix.RelativeDistinguishedNameSET, len(assertions))
 
@@ -280,12 +295,17 @@ func Validate(profile CertificateProfile, content CertificateContent) bool {
 				break
 			}
 
-			// TODO: Custom attribute OIDs are not supported for validation yet
-			wantAt, err := GetRdnAttributeOid(profile.SubjectAttributes.Attributes[wantAttribute].Attribute)
+			currentAttribute := profile.SubjectAttributes.Attributes[wantAttribute].Attribute
+			wantAt, err := GetRdnAttributeOid(currentAttribute)
 			if err != nil {
-				logging.Warningf("profile violation: can't resolve %v to a known attribute OID",
-					profile.SubjectAttributes.Attributes[wantAttribute].Attribute)
-				return false
+				//do we have a custom oid?
+				oid, err := cert.OidFromString(currentAttribute)
+				if err != nil {
+					logging.Warningf("profile violation: can't resolve %v to a known attribute OID",
+						currentAttribute)
+					return false
+				}
+				wantAt = oid
 			}
 
 			if wantAt.Equal(subject[haveAttribute][0].Type) {
@@ -333,54 +353,47 @@ func Merge(profile CertificateProfile, content CertificateContent) (*Certificate
 
 	newExt := make([]ExtensionConfig, 0, len(profile.Extensions)+len(content.Extensions))
 
-	ixProfileExt := 0
-	ixConfigExt := 0
-	for {
-		if ixProfileExt >= len(profile.Extensions) {
-			break
-		}
-
-		profExt := profile.Extensions[ixProfileExt]
-		if ixConfigExt >= len(content.Extensions) {
-			ixProfileExt++
-			if !profExt.Profile().Optional {
-				newExt = append(newExt, profExt)
-			}
-			continue
-		}
-
-		certExt := content.Extensions[ixConfigExt]
-
+	certExtsHandled := make([]int, 0, len(content.Extensions))
+	for _, profExt := range profile.Extensions {
 		oidProf, err := profExt.Oid()
 		if err != nil {
 			return nil, err
 		}
 
-		oidContent, err := certExt.Oid()
-		if err != nil {
-			return nil, err
-		}
-
-		if oidContent.Equal(oidProf) {
-			if profExt.ContentEquals(certExt) {
-				ixProfileExt++
-				ixConfigExt++
-				continue
-			} else if profExt.Profile().Override {
-				ixProfileExt++
-				ixConfigExt++
-				continue
-			} else {
-				ixProfileExt++
-				if !profExt.Profile().Optional {
-					newExt = append(newExt, profExt)
+		handled := false
+		for i, certExt := range content.Extensions {
+			//check if we handled the content-extension already
+			wasThisHandled := false
+			for _, ix := range certExtsHandled {
+				if ix == i {
+					wasThisHandled = true
+					break
 				}
+			}
+
+			if wasThisHandled {
 				continue
 			}
-		} else {
-			ixProfileExt++
+
+			oidContent, err := certExt.Oid()
+			if err != nil {
+				return nil, err
+			}
+
+			if oidProf.Equal(oidContent) {
+				handled = true
+				certExtsHandled = append(certExtsHandled, i)
+
+				if !profExt.Profile().Override && !profExt.ContentEquals(certExt) {
+					newExt = append(newExt, profExt)
+				}
+
+				break
+			}
+		}
+
+		if !handled && !profExt.Profile().Optional {
 			newExt = append(newExt, profExt)
-			continue
 		}
 	}
 

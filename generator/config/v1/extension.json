@@ -5,33 +5,61 @@
         "subjectKeyIdentifier": {
             "type": "object",
             "properties": {
-                "critical": { "type": "boolean" },
-                "optional": { "type": "boolean" },
-                "override": { "type": "boolean" },
-                "raw": { "$ref": "extension_rawcontent.json" },
-                "content":  {
+                "critical": {
+                    "type": "boolean"
+                },
+                "optional": {
+                    "type": "boolean"
+                },
+                "override": {
+                    "type": "boolean"
+                },
+                "raw": {
+                    "$ref": "extension_rawcontent.json"
+                },
+                "content": {
                     "type": "string",
                     "pattern": "(hash)|(!binary:[A-Za-z0-9+/=]+)"
                 }
             },
             "additionalProperties": false,
             "anyOf": [
-				{"required": ["override"]},
-				{
+                {
+                    "required": [
+                        "override"
+                    ]
+                },
+                {
                     "oneOf": [
-                        {"required": ["content"]},
-                        {"required": ["raw"]}
+                        {
+                            "required": [
+                                "content"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "raw"
+                            ]
+                        }
                     ]
                 }
-			]
+            ]
         },
         "keyUsage": {
             "type": "object",
             "properties": {
-                "critical": { "type": "boolean" },
-                "optional": { "type": "boolean" },
-                "override": { "type": "boolean" },
-                "raw": { "$ref": "extension_rawcontent.json" },
+                "critical": {
+                    "type": "boolean"
+                },
+                "optional": {
+                    "type": "boolean"
+                },
+                "override": {
+                    "type": "boolean"
+                },
+                "raw": {
+                    "$ref": "extension_rawcontent.json"
+                },
                 "content": {
                     "type": "array",
                     "items": {
@@ -49,29 +77,53 @@
             },
             "additionalProperties": false,
             "anyOf": [
-				{"required": ["override"]},
-				{
+                {
+                    "required": [
+                        "override"
+                    ]
+                },
+                {
                     "oneOf": [
-                        {"required": ["content"]},
-                        {"required": ["raw"]}
+                        {
+                            "required": [
+                                "content"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "raw"
+                            ]
+                        }
                     ]
                 }
-			]
+            ]
         },
         "subjectAlternativeName": {
             "type": "object",
             "properties": {
-                "critical": { "type": "boolean" },
-                "optional": { "type": "boolean" },
-                "override": { "type": "boolean" },
-                "raw": { "$ref": "extension_rawcontent.json" },
+                "critical": {
+                    "type": "boolean"
+                },
+                "optional": {
+                    "type": "boolean"
+                },
+                "override": {
+                    "type": "boolean"
+                },
+                "raw": {
+                    "$ref": "extension_rawcontent.json"
+                },
                 "content": {
                     "type": "array",
                     "items": {
                         "type": "object",
                         "properties": {
                             "type": {
-                                "enum": ["ip", "dns", "mail"]
+                                "enum": [
+                                    "ip",
+                                    "dns",
+                                    "mail"
+                                ]
                             },
                             "name": {
                                 "type": "string"
@@ -83,22 +135,42 @@
             },
             "additionalProperties": false,
             "anyOf": [
-				{"required": ["override"]},
-				{
+                {
+                    "required": [
+                        "override"
+                    ]
+                },
+                {
                     "oneOf": [
-                        {"required": ["content"]},
-                        {"required": ["raw"]}
+                        {
+                            "required": [
+                                "content"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "raw"
+                            ]
+                        }
                     ]
                 }
-			]
+            ]
         },
         "basicConstraints": {
             "type": "object",
             "properties": {
-                "critical": { "type": "boolean" },
-                "optional": { "type": "boolean" },
-                "override": { "type": "boolean" },
-                "raw": { "$ref": "extension_rawcontent.json" },
+                "critical": {
+                    "type": "boolean"
+                },
+                "optional": {
+                    "type": "boolean"
+                },
+                "override": {
+                    "type": "boolean"
+                },
+                "raw": {
+                    "$ref": "extension_rawcontent.json"
+                },
                 "content": {
                     "type": "object",
                     "properties": {
@@ -115,51 +187,142 @@
             },
             "additionalProperties": false,
             "anyOf": [
-				{"required": ["override"]},
-				{
+                {
+                    "required": [
+                        "override"
+                    ]
+                },
+                {
                     "oneOf": [
-                        {"required": ["content"]},
-                        {"required": ["raw"]}
+                        {
+                            "required": [
+                                "content"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "raw"
+                            ]
+                        }
                     ]
                 }
-			]
+            ]
         },
         "certificatePolicies": {
             "type": "object",
             "properties": {
-                "critical": { "type": "boolean" },
-                "optional": { "type": "boolean" },
-                "override": { "type": "boolean" },
-                "raw": { "$ref": "extension_rawcontent.json" },
+                "critical": {
+                    "type": "boolean"
+                },
+                "optional": {
+                    "type": "boolean"
+                },
+                "override": {
+                    "type": "boolean"
+                },
+                "raw": {
+                    "$ref": "extension_rawcontent.json"
+                },
                 "content": {
                     "type": "array",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "oid": {"$ref": "oid.json"}
+                            "oid": {
+                                "$ref": "oid.json"
+                            },
+                            "qualifiers": {
+                                "type": "array",
+                                "items": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "cps": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "cps"
+                                            ]
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "userNotice": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "organization": {
+                                                            "type": "string"
+                                                        },
+                                                        "numbers": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "integer"
+                                                            }
+                                                        },
+                                                        "text": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "additionalProperties": false,
+                                            "required": [
+                                                "userNotice"
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
                         },
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "required": [
+                            "oid"
+                        ]
                     }
                 }
             },
             "additionalProperties": false,
             "anyOf": [
-				{"required": ["override"]},
-				{
+                {
+                    "required": [
+                        "override"
+                    ]
+                },
+                {
                     "oneOf": [
-                        {"required": ["content"]},
-                        {"required": ["raw"]}
+                        {
+                            "required": [
+                                "content"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "raw"
+                            ]
+                        }
                     ]
                 }
-			]
+            ]
         },
         "authorityInformationAccess": {
             "type": "object",
             "properties": {
-                "critical": { "type": "boolean" },
-                "optional": { "type": "boolean" },
-                "override": { "type": "boolean" },
-                "raw": { "$ref": "extension_rawcontent.json" },
+                "critical": {
+                    "type": "boolean"
+                },
+                "optional": {
+                    "type": "boolean"
+                },
+                "override": {
+                    "type": "boolean"
+                },
+                "raw": {
+                    "$ref": "extension_rawcontent.json"
+                },
                 "content": {
                     "type": "array",
                     "items": {
@@ -175,58 +338,99 @@
             },
             "additionalProperties": false,
             "anyOf": [
-				{"required": ["override"]},
-				{
+                {
+                    "required": [
+                        "override"
+                    ]
+                },
+                {
                     "oneOf": [
-                        {"required": ["content"]},
-                        {"required": ["raw"]}
+                        {
+                            "required": [
+                                "content"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "raw"
+                            ]
+                        }
                     ]
                 }
-			]
+            ]
         },
         "authorityKeyIdentifier": {
             "type": "object",
             "properties": {
-                "critical": { "type": "boolean" },
-                "optional": { "type": "boolean" },
-                "override": { "type": "boolean" },
-                "raw": { "$ref": "extension_rawcontent.json" },
-                "content":  {
+                "critical": {
+                    "type": "boolean"
+                },
+                "optional": {
+                    "type": "boolean"
+                },
+                "override": {
+                    "type": "boolean"
+                },
+                "raw": {
+                    "$ref": "extension_rawcontent.json"
+                },
+                "content": {
                     "type": "object",
                     "properties": {
                         "id": {
                             "type": "string",
                             "pattern": "(hash)|(!binary:[A-Za-z0-9+/=]+)"
-
                         }
                     },
                     "additionalProperties": false
-               }
+                }
             },
             "additionalProperties": false,
             "anyOf": [
-				{"required": ["override"]},
-				{
+                {
+                    "required": [
+                        "override"
+                    ]
+                },
+                {
                     "oneOf": [
-                        {"required": ["content"]},
-                        {"required": ["raw"]}
+                        {
+                            "required": [
+                                "content"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "raw"
+                            ]
+                        }
                     ]
                 }
-			]
+            ]
         },
         "admission": {
             "type": "object",
             "properties": {
-                "critical": { "type": "boolean" },
-                "optional": { "type": "boolean" },
-                "override": { "type": "boolean" },
-                "raw": { "$ref": "extension_rawcontent.json" },
+                "critical": {
+                    "type": "boolean"
+                },
+                "optional": {
+                    "type": "boolean"
+                },
+                "override": {
+                    "type": "boolean"
+                },
+                "raw": {
+                    "$ref": "extension_rawcontent.json"
+                },
                 "content": {
                     "type": "array",
                     "items": {
                         "type": "object",
-                        "properties":{
-                            "professionOid": {"$ref": "oid.json"},
+                        "properties": {
+                            "professionOid": {
+                                "$ref": "oid.json"
+                            },
                             "professionItem": {
                                 "type": "string"
                             },
@@ -235,34 +439,56 @@
                             }
                         },
                         "additionalProperties": false,
-                        "required": ["professionItem"]
+                        "required": [
+                            "professionItem"
+                        ]
                     }
                 }
             },
             "additionalProperties": false,
             "anyOf": [
-				{"required": ["override"]},
-				{
+                {
+                    "required": [
+                        "override"
+                    ]
+                },
+                {
                     "oneOf": [
-                        {"required": ["content"]},
-                        {"required": ["raw"]}
+                        {
+                            "required": [
+                                "content"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "raw"
+                            ]
+                        }
                     ]
                 }
-			]
+            ]
         },
         "extendedKeyUsage": {
             "type": "object",
             "properties": {
-                "critical": { "type": "boolean" },
-                "optional": { "type": "boolean" },
-                "override": { "type": "boolean" },
-                "raw": { "$ref": "extension_rawcontent.json" },
+                "critical": {
+                    "type": "boolean"
+                },
+                "optional": {
+                    "type": "boolean"
+                },
+                "override": {
+                    "type": "boolean"
+                },
+                "raw": {
+                    "$ref": "extension_rawcontent.json"
+                },
                 "content": {
                     "type": "array",
                     "items": {
                         "anyOf": [
                             {
-                                "type":"string",
+                                "type": "string",
                                 "enum": [
                                     "serverAuth",
                                     "clientAuth",
@@ -272,37 +498,68 @@
                                     "OCSPSigning"
                                 ]
                             },
-                            { "$ref": "oid.json" }
+                            {
+                                "$ref": "oid.json"
+                            }
                         ]
                     }
                 }
             },
             "additionalProperties": false,
             "anyOf": [
-				{"required": ["override"]},
-				{
+                {
+                    "required": [
+                        "override"
+                    ]
+                },
+                {
                     "oneOf": [
-                        {"required": ["content"]},
-                        {"required": ["raw"]}
+                        {
+                            "required": [
+                                "content"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "raw"
+                            ]
+                        }
                     ]
                 }
-			]
+            ]
         },
         "custom": {
             "type": "object",
             "properties": {
-                "critical": { "type": "boolean" },
-                "optional": { "type": "boolean" },
-                "override": { "type": "boolean" },
-                "raw": { "$ref": "extension_rawcontent.json" },
-                "oid": { "$ref": "oid.json" }
+                "critical": {
+                    "type": "boolean"
+                },
+                "optional": {
+                    "type": "boolean"
+                },
+                "override": {
+                    "type": "boolean"
+                },
+                "raw": {
+                    "$ref": "extension_rawcontent.json"
+                },
+                "oid": {
+                    "$ref": "oid.json"
+                }
             },
             "additionalProperties": false,
             "anyOf": [
-				{"required": ["override"]},
-				{"required": ["raw"]}
+                {
+                    "required": [
+                        "override"
+                    ]
+                },
+                {
+                    "required": [
+                        "raw"
+                    ]
+                }
             ]
-
         }
     },
     "additionalProperties": false,

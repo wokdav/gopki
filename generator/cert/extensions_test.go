@@ -3,6 +3,7 @@ package cert
 import (
 	"bytes"
 	"encoding/asn1"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"reflect"
@@ -270,24 +271,65 @@ func TestBasicConstraintsCaThree(t *testing.T) {
 }
 
 func TestCertificatePoliciesOid(t *testing.T) {
-	ext := NewCertificatePolicies(false, []PolicyInfo{})
+	ext, _ := NewCertificatePolicies(false, []PolicyInfo{})
 	if !ext.Id.Equal(oidExtensionCertificatePolicies) {
 		t.Fatalf("wrong extension oid: %#v", ext.Id)
 	}
 }
 
 func TestCertificatePoliciesCritical(t *testing.T) {
-	if !NewCertificatePolicies(true, []PolicyInfo{}).Critical {
+	ext, _ := NewCertificatePolicies(true, []PolicyInfo{})
+	if !ext.Critical {
 		t.Fatal("extension should be critical")
 	}
 }
 
 func TestCertificatePoliciesSimpleId(t *testing.T) {
 	expected := []byte{0x30, 0x07, 0x30, 0x05, 0x06, 0x03, 0x2A, 0x03, 0x04}
-	ext := NewCertificatePolicies(false, []PolicyInfo{
-		{asn1.ObjectIdentifier{1, 2, 3, 4}},
+	ext, _ := NewCertificatePolicies(false, []PolicyInfo{
+		{asn1.ObjectIdentifier{1, 2, 3, 4}, nil},
 	})
 	if !reflect.DeepEqual(expected, ext.Value) {
+		t.Fatalf("byte array does not conform: %v", hex.EncodeToString(ext.Value))
+	}
+}
+
+func TestCertificatePoliciesIdWithQualifiers(t *testing.T) {
+	certPolB64 := "MIGxMAUGAyoDBDAGBgQtBgcIMIGfBgMrBQgwgZcwJwYIKwYBBQUHAgEWG2h0dHA6Ly9teS5ob3N0" +
+		"LmV4YW1wbGUuY29tLzAnBggrBgEFBQcCARYbaHR0cDovL215LnlvdXIuZXhhbXBsZS5jb20vMEMG" +
+		"CCsGAQUFBwICMDcwIQwRT3JnYW5pc2F0aW9uIE5hbWUwDAIBAQIBAgIBAwIBBAwSRXhwbGljaXQg" +
+		"VGV4dCBIZXJl"
+	dec := base64.NewDecoder(base64.StdEncoding, strings.NewReader(certPolB64))
+
+	expected := make([]byte, len(certPolB64))
+	n, err := dec.Read(expected)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	expected = expected[:n]
+
+	ext, err := NewCertificatePolicies(false, []PolicyInfo{
+		{ObjectIdentifier: asn1.ObjectIdentifier{1, 2, 3, 4}},
+		{ObjectIdentifier: asn1.ObjectIdentifier{1, 5, 6, 7, 8}},
+		{ObjectIdentifier: asn1.ObjectIdentifier{1, 3, 5, 8}, Qualifiers: []PolicyQualifier{
+			{QualifierId: asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 1}, Cps: "http://my.host.example.com/"},
+			{QualifierId: asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 1}, Cps: "http://my.your.example.com/"},
+			{QualifierId: asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 2}, UserNotice: UserNotice{
+				NoticeRef: NoticeReference{
+					Organization:  "Organisation Name",
+					NoticeNumbers: []int{1, 2, 3, 4},
+				},
+				ExplicitText: "Explicit Text Here"},
+			},
+		}},
+	})
+
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if !bytes.Equal(expected, ext.Value) {
+		t.Error(hex.EncodeToString(expected))
 		t.Fatalf("byte array does not conform: %v", hex.EncodeToString(ext.Value))
 	}
 }

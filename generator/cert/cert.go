@@ -77,10 +77,7 @@ type IssuerContext struct {
 // Represents all information about an entity prior to signing.
 // This includes the entities' private key, certificate data
 // and issuer information.
-// TODO: CertificateContext is optimized to build certificates
-// it is cumbersome to use it for importing certificates
 type CertificateContext struct {
-	//TODO: maybe move the issuer out of here, since this package doesn't use it.
 	Alias string
 	*TbsCertificate
 	crypto.PrivateKey

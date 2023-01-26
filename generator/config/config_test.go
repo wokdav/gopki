@@ -38,6 +38,13 @@ func TestValidateSubject(t *testing.T) {
 					{Attribute: "POSTALCODE", Optional: false},
 				},
 			}, true},
+		"1.2.3.4=CustomOidTest": {
+			ProfileSubjectAttributes{
+				AllowOther: false,
+				Attributes: []ProfileSubjectAttribute{
+					{Attribute: "1.2.3.4", Optional: false},
+				},
+			}, true},
 		"O=Missing": {
 			ProfileSubjectAttributes{
 				AllowOther: false,
@@ -316,6 +323,16 @@ func TestMergeExtensions(t *testing.T) {
 			certConfig: []ExtensionConfig{ext2},
 			result:     []ExtensionConfig{ext, ext2},
 		}, {
+			//accept override even if it does not immediately follow
+			profile:    []ExtensionConfig{extOverride},
+			certConfig: []ExtensionConfig{ext2, ext},
+			result:     []ExtensionConfig{ext2, ext},
+		}, {
+			//accept override even if order is different
+			profile:    []ExtensionConfig{extOverride, ext2Override},
+			certConfig: []ExtensionConfig{ext2, ext},
+			result:     []ExtensionConfig{ext2, ext},
+		}, {
 			//handle multiples part
 			profile:    []ExtensionConfig{ext, ext, ext},
 			certConfig: []ExtensionConfig{ext},
@@ -378,6 +395,13 @@ func TestParseRdnSequence(t *testing.T) {
 		{"CN=Test,O=TestO,OU=TestOU,CN=TestCN,SERIALNUMBER=123," +
 			"L=TestL,ST=TestST,STREET=TestSTREET,POSTALCODE=TestPOSTALCODE", ""},
 		{"1.2.3.4=TestOid", "1.2.3.4=#1307546573744f6964"},
+		{`CN=Test\,Comma\,Escape`, `CN=Test\\\,Comma\\\,Escape`},
+		{`CN="`, `CN=\"`},
+		{`CN=<`, `CN=\<`},
+		{`CN=>`, `CN=\>`},
+		{`CN=+`, `CN=\+`},
+		{`CN=\`, `CN=\\`},
+		{`CN=;`, `CN=\;`},
 	}
 
 	for _, test := range tests {

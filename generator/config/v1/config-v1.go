@@ -74,13 +74,10 @@ const (
 	fileTypeCertProfile
 )
 
-// TODO: Put default into v1 struct
-
 // The implementor of [config.Configurator] for version 1.
 type V1Configurator struct{}
 
 // calculate start and end time from string struct
-// TODO: Drop this in favor of just using time.ParseDuration, which is way more flexible
 func (c CertValidity) extractTimespan() (*time.Time, *time.Time, error) {
 	var from time.Time
 	var to time.Time

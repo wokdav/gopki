@@ -4,6 +4,8 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"gopki/generator"
+	"gopki/generator/cert"
 	"gopki/generator/config"
 	"os"
 	"strings"
@@ -245,6 +247,68 @@ func TestParseExampleProfile(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected to receive a CertificateProfile type")
 	}
+}
+
+func TestParseExampleCertificate(t *testing.T) {
+	conf := V1Configurator{}
+	cer, err := conf.ParseConfiguration(certificateExample)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	_, ok := cer.(*config.CertificateContent)
+	if !ok {
+		t.Fatalf("expected to receive a CertificateContent type")
+	}
+}
+
+func TestGenerateExample(t *testing.T) {
+	//parse both configurations
+	conf := V1Configurator{}
+	cfg, err := conf.ParseConfiguration(profileExample)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	cer, err := conf.ParseConfiguration(certificateExample)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	prof, ok := cfg.(*config.CertificateProfile)
+	if !ok {
+		t.Fatalf("expected to receive a CertificateProfile type")
+	}
+
+	cerCfg, ok := cer.(*config.CertificateContent)
+	if !ok {
+		t.Fatalf("expected to receive a CertificateContent type")
+	}
+
+	//validate config against profile
+	if !config.Validate(*prof, *cerCfg) {
+		t.Fatalf("example certificate does not validate against example profile")
+	}
+
+	//merge extensions from profile
+	cerCfg, err = config.Merge(*prof, *cerCfg)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	//generate tbsCertificate
+	ctx, err := generator.BuildCertBody(*cerCfg)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	//self-sign certificate
+	certificate, err := ctx.Sign(cert.ECDSAwithSHA256)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	t.Logf("%#v", certificate)
 }
 
 func TestValidateSubject(t *testing.T) {

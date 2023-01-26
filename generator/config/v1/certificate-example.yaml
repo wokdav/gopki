@@ -4,8 +4,8 @@ version: 1
 
 # subject DN of the certificate
 # only shorthand attributes and custom attribute OIDs are recognized.
-# seperator is comma, comma escaping is not supported and spaces may appear
-# between commas.
+# seperator is comma, commas may be escaped with a backslash: C=DE,CN=My\,Org
+# Other features (like multiple names per attribute) are currently not supported.
 #
 # by convention stated in RFC4514, string representations of DNs should
 # reverse the order of the DN attributes. This convention is respected,
@@ -43,7 +43,7 @@ alias: my-certificate
 # a referencing issuer will always sign the certificate, even if the extensions
 # do not denote a valid authority.
 # (optional - certificate is self-signed and self-issued, if left out)
-issuer: my-certificate-authority
+# issuer: my-certificate-authority
 
 # the algorithm of the generated key. may be one of the following:
 #
@@ -153,12 +153,30 @@ extensions:
     - basicConstraints:
         critical: true
         content:
-            ca: true # default: false
-            pathLen: 3 # may be omitted
+            ca: true   # default: false
+            pathLen: 3 # optional
     - certificatePolicies:
         content:
           - oid: 1.2.3.4
-          - oid: 6.1.2.5.5.1.11.2
+          - oid: 1.2.3.5
+            # below are the options for policy qualifiers (fairly esoteric)
+            # displayText-Properties are encoded in utf8
+            # this extension shows a CPS qualifier, the next one shows an example
+            # using the User Notice qualifier
+            qualifiers:                            # optional
+              - cps: http://pki.example.com/myCps  # provide EITHER cps OR userNotice per list item
+    - certificatePolicies:
+        content:
+          - oid: 1.2.3.6
+            qualifiers:
+              - userNotice:
+                  organization: "Example Org"
+                  numbers:
+                    - 1
+                    - 2
+                    - 3
+                    - 8
+                  text: "This is a user notice"    # optional
     - authorityInformationAccess:
         # these are all supported access info items
         content:
@@ -179,6 +197,6 @@ extensions:
           - OCSPSigning
     - custom:
         # define your own extension
-        oid: 1.56.12.4.5
+        oid: 1.12.12.4.5
         critical: true
         raw: "!binary:AQIDBA=="

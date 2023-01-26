@@ -692,24 +692,6 @@ func TestUnknownProfile(t *testing.T) {
 	}
 }
 
-func TestBrokenConfig(t *testing.T) {
-	fs := getTestFs(
-		map[string]string{
-			"root.yaml": "version: 69",
-		},
-	)
-
-	testdb := NewFilesystemDatabase(fs)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
-	if err == nil {
-		t.Fatal("this should fail")
-	}
-
-	if !strings.Contains(err.Error(), "error parsing") {
-		t.Fatalf("expected error due to parsing error, but instead got '%s'", err.Error())
-	}
-}
-
 func TestWriteToFileMapFs(t *testing.T) {
 	fsdb := getTestFs(map[string]string{})
 	filename := "testfile.txt"

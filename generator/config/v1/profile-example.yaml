@@ -47,7 +47,7 @@ validity:
 extensions:
     - subjectKeyIdentifier:
         content: hash
-        optional: true # default: false
+        optional: false # default: false
     - subjectAlternativeName:
         # content is missing here, the certificate has to override this extension
         override: true # default: false

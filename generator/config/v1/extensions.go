@@ -440,8 +440,20 @@ func (b BasicConstraints) Builder() (cert.ExtensionBuilder, error) {
 	return nil, errors.New("config-v1: [basicConstraints] neither content nor raw content is given")
 }
 
+type UserNotice struct {
+	Organization string `json:"organization"`
+	Numbers      []int  `json:"numbers"`
+	Text         string `json:"text"`
+}
+
+type PolicyQualifiers struct {
+	Cps         string `json:"cps"`
+	*UserNotice `json:"userNotice"`
+}
+
 type CertPolicy struct {
-	Oid string `json:"oid"`
+	Oid        string             `json:"oid"`
+	Qualifiers []PolicyQualifiers `json:"qualifiers"`
 }
 
 // JSON/YAML representation for this extension.
@@ -507,10 +519,38 @@ func (c CertPolicies) Builder() (cert.ExtensionBuilder, error) {
 			}
 
 			policyIds[i] = cert.PolicyInfo{ObjectIdentifier: id}
+
+			if policyObj.Qualifiers == nil {
+				continue
+			}
+
+			policyIds[i].Qualifiers = make([]cert.PolicyQualifier, len(policyObj.Qualifiers))
+
+			for j, qualifier := range policyObj.Qualifiers {
+				if len(qualifier.Cps) > 0 {
+					policyIds[i].Qualifiers[j].QualifierId = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 1}
+					policyIds[i].Qualifiers[j].Cps = qualifier.Cps
+					continue
+				}
+				if qualifier.UserNotice != nil {
+					policyIds[i].Qualifiers[j].QualifierId = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 2}
+					policyIds[i].Qualifiers[j].UserNotice = cert.UserNotice{
+						NoticeRef: cert.NoticeReference{
+							Organization:  qualifier.Organization,
+							NoticeNumbers: qualifier.Numbers,
+						},
+						ExplicitText: qualifier.Text,
+					}
+					continue
+				}
+				return nil, fmt.Errorf("config-v1: no valid qualifier in struct: %v", qualifier)
+			}
 		}
-		return config.ConstantBuilder{
-			Extension: cert.NewCertificatePolicies(c.Critical, policyIds),
-		}, nil
+		ext, err := cert.NewCertificatePolicies(c.Critical, policyIds)
+		if err != nil {
+			return nil, err
+		}
+		return config.ConstantBuilder{Extension: *ext}, nil
 	} else {
 		if c.Override {
 			return config.OverrideNeededBuilder{}, nil

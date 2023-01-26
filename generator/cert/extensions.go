@@ -218,21 +218,40 @@ func NewBasicConstraints(critical bool, isCa bool, pathLen int) pkix.Extension {
 }
 
 // PolicyInfo for the Certificate Policies Extension.
-// Currently it only contains the Policy OID, not the Policy Qualifiers.
 type PolicyInfo struct {
-	// TODO: add policy qualifiers
 	asn1.ObjectIdentifier
+	Qualifiers []PolicyQualifier `asn1:"optional"`
+}
+
+type PolicyQualifier struct {
+	QualifierId asn1.ObjectIdentifier
+	Cps         string `asn1:"optional,ia5"`
+	UserNotice  `asn1:"optional"`
+}
+
+type UserNotice struct {
+	NoticeRef    NoticeReference `asn1:"optional"`
+	ExplicitText string          `asn1:"optional,utf8"`
+}
+
+type NoticeReference struct {
+	Organization  string `asn1:"utf8"`
+	NoticeNumbers []int
 }
 
 // Create a Certificate Policies Extension according to RFC5280.
-func NewCertificatePolicies(critical bool, policyIds []PolicyInfo) pkix.Extension {
-	polBody, _ := asn1.Marshal(policyIds)
+func NewCertificatePolicies(critical bool, policyIds []PolicyInfo) (*pkix.Extension, error) {
+	polBody, err := asn1.Marshal(policyIds)
 
-	return pkix.Extension{
+	if err != nil {
+		return nil, err
+	}
+
+	return &pkix.Extension{
 		Critical: critical,
 		Id:       oidExtensionCertificatePolicies,
 		Value:    polBody,
-	}
+	}, nil
 }
 
 type AccessMethod int
