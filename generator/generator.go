@@ -7,9 +7,9 @@
 package generator
 
 import (
-	"gopki/generator/cert"
-	"gopki/generator/config"
-	"gopki/logging"
+	"github.com/wokdav/gopki/generator/cert"
+	"github.com/wokdav/gopki/generator/config"
+	"github.com/wokdav/gopki/logging"
 )
 
 // Returns a [cert.CertificateContext] that corresponds to the supplied

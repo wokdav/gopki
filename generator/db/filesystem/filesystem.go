@@ -22,11 +22,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"gopki/generator"
-	"gopki/generator/cert"
-	"gopki/generator/config"
-	"gopki/generator/db"
-	"gopki/logging"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -34,7 +29,13 @@ import (
 	"testing/fstest"
 	"time"
 
-	_ "gopki/generator/config/v1"
+	"github.com/wokdav/gopki/generator"
+	"github.com/wokdav/gopki/generator/cert"
+	"github.com/wokdav/gopki/generator/config"
+	"github.com/wokdav/gopki/generator/db"
+	"github.com/wokdav/gopki/logging"
+
+	_ "github.com/wokdav/gopki/generator/config/v1"
 )
 
 const writePermissions fs.FileMode = 0644

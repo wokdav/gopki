@@ -2,11 +2,12 @@ package cli
 
 import (
 	"fmt"
-	"gopki/generator/config"
-	"gopki/generator/db"
-	"gopki/generator/db/filesystem"
-	"gopki/logging"
 	"os"
+
+	"github.com/wokdav/gopki/generator/config"
+	"github.com/wokdav/gopki/generator/db"
+	"github.com/wokdav/gopki/generator/db/filesystem"
+	"github.com/wokdav/gopki/logging"
 
 	"github.com/spf13/cobra"
 )

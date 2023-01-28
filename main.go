@@ -4,7 +4,7 @@
 // For more information about this project, see the README.
 package main
 
-import "gopki/cli"
+import "github.com/wokdav/gopki/cli"
 
 func main() {
 	cli.Execute()

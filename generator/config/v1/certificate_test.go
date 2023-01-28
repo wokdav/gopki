@@ -1,8 +1,9 @@
 package v1
 
 import (
-	"gopki/generator/config"
 	"testing"
+
+	"github.com/wokdav/gopki/generator/config"
 
 	_ "embed"
 )

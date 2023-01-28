@@ -11,13 +11,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gopki/generator/cert"
-	"gopki/generator/config"
-	"gopki/logging"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wokdav/gopki/generator/cert"
+	"github.com/wokdav/gopki/generator/config"
+	"github.com/wokdav/gopki/logging"
 
 	"github.com/ghodss/yaml"
 )

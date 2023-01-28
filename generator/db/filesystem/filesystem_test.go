@@ -8,14 +8,15 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/pem"
-	"gopki/generator/cert"
-	"gopki/generator/db"
 	"io/fs"
 	"os"
 	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
+
+	"github.com/wokdav/gopki/generator/cert"
+	"github.com/wokdav/gopki/generator/db"
 )
 
 var testrootcert string = `-----BEGIN CERTIFICATE-----

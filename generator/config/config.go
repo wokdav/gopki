@@ -24,11 +24,12 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
-	"gopki/generator/cert"
-	"gopki/logging"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/wokdav/gopki/generator/cert"
+	"github.com/wokdav/gopki/logging"
 
 	"github.com/ghodss/yaml"
 )

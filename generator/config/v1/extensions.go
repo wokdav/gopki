@@ -6,11 +6,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"gopki/generator/cert"
-	"gopki/generator/config"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/wokdav/gopki/generator/cert"
+	"github.com/wokdav/gopki/generator/config"
 )
 
 // Struct for unmarshaling JSON/YAML extensions.

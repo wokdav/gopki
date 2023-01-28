@@ -4,11 +4,12 @@ import (
 	"crypto/x509/pkix"
 	_ "embed"
 	"encoding/asn1"
-	"gopki/generator/cert"
-	"gopki/generator/config"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/wokdav/gopki/generator/cert"
+	"github.com/wokdav/gopki/generator/config"
 
 	"github.com/santhosh-tekuri/jsonschema"
 )

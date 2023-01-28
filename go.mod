@@ -1,4 +1,4 @@
-module gopki
+module github.com/wokdav/gopki
 
 go 1.19
 

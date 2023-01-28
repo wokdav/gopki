@@ -1,14 +1,15 @@
 package generator
 
 import (
-	"gopki/generator/cert"
-	"gopki/generator/config"
 	"strings"
 	"testing"
 	"time"
 
-	_ "gopki/generator/config/v1"
-	v1 "gopki/generator/config/v1"
+	"github.com/wokdav/gopki/generator/cert"
+	"github.com/wokdav/gopki/generator/config"
+
+	_ "github.com/wokdav/gopki/generator/config/v1"
+	v1 "github.com/wokdav/gopki/generator/config/v1"
 )
 
 var testduration time.Duration

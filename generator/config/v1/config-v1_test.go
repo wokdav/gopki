@@ -4,13 +4,14 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"gopki/generator"
-	"gopki/generator/cert"
-	"gopki/generator/config"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/wokdav/gopki/generator"
+	"github.com/wokdav/gopki/generator/cert"
+	"github.com/wokdav/gopki/generator/config"
 
 	"github.com/ghodss/yaml"
 )

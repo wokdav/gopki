@@ -4,10 +4,11 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"fmt"
-	"gopki/generator/cert"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/wokdav/gopki/generator/cert"
 )
 
 func TestValidateSubject(t *testing.T) {

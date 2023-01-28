@@ -8,7 +8,7 @@
 package db
 
 import (
-	"gopki/generator/cert"
+	"github.com/wokdav/gopki/generator/cert"
 )
 
 type CertificateDatabase interface {
