@@ -28,14 +28,13 @@ version: 1
 # (required)
 subject: "CN=MyCert, 1.2.3.4=MyOwnAttribute"
 
-# name (aka alias) of the certificate used for referencing issuers
-# explicitly setting this alias is reserved for future use. at the moment,
-# the alias will always be set to the relative file path of the config file,
-# not including the file extension.
+# name (aka alias) of the certificate. this is to reference the issuer.
 #
-# for example: if you certificate configs are in a folder /my/certs/ with a
-# certificate config file under /my/certs/alice/alice.yaml, the alias will
-# be set to alice/alice.yaml.
+# aliases must be unique across the whole PKI. if an alias is not defined
+# it will be set to the base name of the config file.
+#
+# for example: if the config file is under /my/certs/alice/alice.yaml, the
+# alias will be set to "alice".
 # (optional)
 alias: my-certificate
 

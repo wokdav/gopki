@@ -255,8 +255,8 @@ func TestDirectories(t *testing.T) {
 	fsdb := getTestFs(
 		map[string]string{
 			"a/b/c/root.yaml": "version: 1\nsubject: CN=Test Root",
-			"x/y/sub.yaml":    "version: 1\nissuer: a/b/c/root\nsubject: CN=Test Sub",
-			"ee.yaml":         "version: 1\nissuer: x/y/sub\nsubject: CN=Test EE",
+			"x/y/sub.yaml":    "version: 1\nissuer: root\nsubject: CN=Test Sub",
+			"ee.yaml":         "version: 1\nissuer: sub\nsubject: CN=Test EE",
 		},
 	)
 
@@ -276,6 +276,40 @@ func TestDirectories(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 	_, err = fs.ReadFile(fsdb.Fs(), "x/y/sub.pem")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+}
+
+func TestDirectoriesAmbiguousAlias(t *testing.T) {
+	fsdb := getTestFs(
+		map[string]string{
+			"a/b/c/root.yaml": "version: 1\nsubject: CN=Test Root",
+			"a/b/root.yaml":   "version: 1\nsubject: CN=Test Root2",
+			"x/y/sub.yaml":    "version: 1\nissuer: root\nsubject: CN=Test Sub",
+			"ee.yaml":         "version: 1\nissuer: sub\nsubject: CN=Test EE",
+		},
+	)
+
+	testdb := NewFilesystemDatabase(fsdb)
+	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	if err == nil {
+		t.Fatal("this should fail")
+	}
+}
+
+func TestDirectoriesNonAmbiguousAlias(t *testing.T) {
+	fsdb := getTestFs(
+		map[string]string{
+			"a/b/c/root.yaml": "version: 1\nsubject: CN=Test Root",
+			"a/b/root.yaml":   "version: 1\nsubject: CN=Test Root2\nalias: root2",
+			"x/y/sub.yaml":    "version: 1\nissuer: root\nsubject: CN=Test Sub",
+			"ee.yaml":         "version: 1\nissuer: sub\nsubject: CN=Test EE",
+		},
+	)
+
+	testdb := NewFilesystemDatabase(fsdb)
+	_, err := quickUpdate(&testdb, db.GenerateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -465,6 +499,7 @@ func TestCircle(t *testing.T) {
 }
 
 func TestBuildExamples(t *testing.T) {
+	//TODO: copy files to internal db to avoid working on the real thing
 	p := `../../../examples/smime/`
 
 	testdb := NewFilesystemDatabase(NewNativeFs(p))

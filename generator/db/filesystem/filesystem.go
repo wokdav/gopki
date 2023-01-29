@@ -8,12 +8,16 @@
 //
 //   - Explicitly set aliases are ignored.
 //
-//   - The alias will be set to the relative path of the config file without the file suffix
-//     Example: Reading a config file in foo/bar/baz.yaml will result in the alias foo/bar/baz
+//   - The alias will be set to the config file base name
+//     Example: Reading a config file in foo/bar/baz.yaml will result in the alias baz
 //
-//   - Certifiates and keys will have ".pem" and ".key" appended to their alias. This results
-//     in config files, certificate and keys always being next to each other. This is also what
-//     this package assumes, when reading certificates and keys.
+//   - For each generated certificate, the certificate and the key will be stored
+//     together in one .pem file next to the config file. To use the example above,
+//     the certificate/key will be written to foo/bar/baz.pem
+//
+// This also means, that an alias must be unique, regardless whether it is explicitly set,
+// or inherited from the filename. So either the filenames themselves must be unique or
+// ambiguous config file names must set their alias to a unique one.
 //
 // This package also provides an in-memory file system abstraction for testing.
 package filesystem
@@ -118,9 +122,6 @@ type FsDb struct {
 	subscribersOf map[string][]string //gets all subordinate aliases for the key alias
 }
 
-// TODO: File system db is very fragile. Maybe keep the alias as a symbolic name and infer
-//       The actual file name when going through the directory
-
 // Create a new file system database based on the provided implementation.
 // This function pre-allocates about 2K+ KB of arrays to minimize re-allocation,
 // so it should be used consciously.
@@ -174,7 +175,7 @@ func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n certNode) (bool, error)
 		return false, errors.New("filesystem: file system does not support stat methods")
 	}
 
-	certfilename := n.CertificateContent.Alias + ".pem"
+	certfilename := n.configFileName[:strings.LastIndex(n.configFileName, ".")] + ".pem"
 	if strat&db.GenerateNewerConfig > 0 {
 		infoPem, err := statFs.Stat(certfilename)
 		if err != nil {
@@ -187,7 +188,7 @@ func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n certNode) (bool, error)
 		}
 
 		if infoCfg.ModTime().After(infoPem.ModTime()) {
-			logging.Debugf("%v needs update. reson: GenerateNeweConfig is set and config modTime [%v] > cert modTime [%v]",
+			logging.Debugf("%v needs update. reson: GenerateNewerConfig is set and config modTime [%v] > cert modTime [%v]",
 				n.CertificateContent.Alias, infoCfg.ModTime(), infoPem.ModTime())
 			return true, nil
 		}
@@ -287,6 +288,7 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 
 		//check if we need to upgrade
 		node := fsdb.certNodes[alias]
+		baseName := node.configFileName[:strings.LastIndex(node.configFileName, ".")]
 		update, err := fsdb.needsUpdate(strat, *node)
 		if err != nil {
 			return certsGenerated, err
@@ -294,7 +296,7 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 
 		if !update {
 			logging.Debugf("%v does not need an update, so we import so we have it in our db", alias)
-			node.CertificateContext, err = fsdb.importContext(alias + ".pem")
+			node.CertificateContext, err = fsdb.importContext(baseName + ".pem")
 			if err != nil {
 				return certsGenerated, err
 			}
@@ -346,7 +348,7 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 			return certsGenerated, err
 		}
 
-		fname := alias + ".pem"
+		fname := node.configFileName[:strings.LastIndex(node.configFileName, ".")] + ".pem"
 		logging.Debugf("writing %v", fname)
 		err = fsdb.filesystem.WriteFile(fname, bb.Bytes())
 		if err != nil {
@@ -435,7 +437,6 @@ func (fsdb *FsDb) Open() error {
 		cfg, err := config.ParseConfig(fi)
 		if err != nil {
 			logging.Infof("skipping %v due to parsing error", d.Name())
-			//return fmt.Errorf("filesystem: error parsing %v: %v", d.Name(), err.Error())
 			return nil
 		}
 
@@ -446,14 +447,18 @@ func (fsdb *FsDb) Open() error {
 
 			//default alias is the filename
 			if len(certContent.Alias) == 0 {
-				newAlias := path[:strings.LastIndex(path, ".")]
+				newAlias := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
 				certContent.Alias = newAlias
 				logging.Debugf("alias is not set. setting it to '%v'", newAlias)
 			}
 
-			baseName := path[:strings.LastIndex(path, ".")]
+			_, exists := fsdb.certNodes[certContent.Alias]
+			if exists && fsdb.certNodes[certContent.Alias].configFileName != path {
+				logging.Errorf("alias %s already exists in database", certContent.Alias)
+				logging.Errorf("either rename one of these config files to something unique or set a unique alias in the config")
 
-			baseName += certContent.Alias
+				return fmt.Errorf("alias exists multiple times: %s. ", certContent.Alias)
+			}
 
 			fsdb.certNodes[certContent.Alias] = &certNode{
 				configFileName:     path,
