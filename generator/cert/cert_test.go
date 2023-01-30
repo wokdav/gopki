@@ -8,7 +8,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 )
@@ -24,10 +23,9 @@ func init() {
 }
 
 func getQuickCert() *CertificateContext {
-	out, err := NewCertificateContext(nil, P224, nil, time.Now(), time.Now().Add(testduration))
-	if err != nil {
-		panic(err)
-	}
+	out := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
+	out.GeneratePrivateKey(P224)
+	out.SetIssuer(AsIssuer(*out))
 
 	return out
 }
@@ -104,13 +102,6 @@ func TestNewTbsPrivateKeyNotEmpty(t *testing.T) {
 	}
 }
 
-func TestAlias(t *testing.T) {
-	ctx := getQuickCert()
-	if ctx.Alias != ctx.SerialNumber.Text(16) {
-		t.Fatalf("default alias not set or incorrect")
-	}
-}
-
 func TestSignAlgNotNil(t *testing.T) {
 	ctx := getQuickCert()
 	cert, err := ctx.Sign(0xDEAF)
@@ -154,16 +145,19 @@ func TestVerifyMarshalledCertificate(t *testing.T) {
 }
 
 func TestUnknownKeyAlg(t *testing.T) {
-	_, err := NewCertificateContext(defaultSubject, 0xBEEF, nil, time.Now(), time.Now().Add(testduration))
+	ctx := &CertificateContext{}
+	err := ctx.GeneratePrivateKey(0xBEEF)
+
 	if err == nil {
 		t.Fatalf("this should fail")
 	}
 }
 
 func TestUnknownIncompatibleECKeySign(t *testing.T) {
-	ctx, err := NewCertificateContext(defaultSubject, P224, nil, time.Now(), time.Now().Add(testduration))
+	ctx := NewCertificateContext(defaultSubject, nil, time.Now(), time.Now().Add(testduration))
+	err := ctx.GeneratePrivateKey(P224)
 	if err != nil {
-		t.Fatalf("can't generate certificate body: %v", err)
+		t.Fatalf("can't generate key: %v", err)
 	}
 
 	_, err = ctx.Sign(RSAwithSHA1)
@@ -173,7 +167,8 @@ func TestUnknownIncompatibleECKeySign(t *testing.T) {
 }
 
 func TestUnknownIncompatibleRSAKeySign(t *testing.T) {
-	ctx, err := NewCertificateContext(defaultSubject, RSA1024, nil, time.Now(), time.Now().Add(testduration))
+	ctx := NewCertificateContext(defaultSubject, nil, time.Now(), time.Now().Add(testduration))
+	err := ctx.GeneratePrivateKey(RSA1024)
 	if err != nil {
 		t.Fatalf("can't generate certificate body: %v", err)
 	}
@@ -213,7 +208,8 @@ func TestAlgorithms(t *testing.T) {
 			if testing.Short() && !test.isShort {
 				t.Skip()
 			}
-			ctx, err := NewCertificateContext(defaultSubject, test.keyAlg, nil, time.Now(), time.Now().Add(testduration))
+			ctx := NewCertificateContext(defaultSubject, nil, time.Now(), time.Now().Add(testduration))
+			err := ctx.GeneratePrivateKey(test.keyAlg)
 			if err != nil {
 				t.Errorf("can't create certificate body for %v+%v", test.keyAlg, test.sigAlg)
 			}
@@ -221,6 +217,7 @@ func TestAlgorithms(t *testing.T) {
 				t.Errorf("error is nil and tbs is nil or vice versa")
 			}
 
+			ctx.SetIssuer(AsIssuer(*ctx))
 			//test signing for algorithms as well
 			cert, err := ctx.Sign(test.sigAlg)
 			if err != nil {
@@ -335,7 +332,7 @@ S7ye0vWoPHeDhH3vXSXg89kn9aCEvetSDi//NyxMQ/jRRUeXLio/Lsmg
 `
 
 func TestImportPem(t *testing.T) {
-	cert, _, err := ImportPem(strings.NewReader(testrootcert + testrootkey))
+	cert, err := ImportCertPem([]byte(testrootcert))
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -347,7 +344,7 @@ func TestImportPem(t *testing.T) {
 
 func TestImportPemBrokenCert(t *testing.T) {
 	brokencert := "-----+-*8+-8+*87+*8+954+6468" + testrootcert
-	_, _, err := ImportPem(strings.NewReader(brokencert + testrootkey))
+	_, err := ImportCertPem([]byte(brokencert + testrootkey))
 	if err == nil {
 		t.Fatal("this should fail")
 	}
@@ -357,7 +354,7 @@ func TestImportWrongCertType(t *testing.T) {
 	p, _ := pem.Decode([]byte(testrootcert))
 	p.Type = "FOO"
 	brokencert := pem.EncodeToMemory(p)
-	_, _, err := ImportPem(strings.NewReader(testrootkey + string(brokencert)))
+	_, err := ImportCertPem([]byte(testrootkey + string(brokencert)))
 	if err == nil {
 		t.Fatal("this should fail")
 	}
@@ -365,7 +362,7 @@ func TestImportWrongCertType(t *testing.T) {
 
 func TestImportPemBrokenKey(t *testing.T) {
 	brokenkey := "-----+-*8+-8+*87+*8+954+6468" + testrootkey
-	_, _, err := ImportPem(strings.NewReader(testrootcert + brokenkey))
+	_, err := ImportKeyPem([]byte(testrootcert + brokenkey))
 	if err == nil {
 		t.Fatal("this should fail")
 	}
@@ -375,7 +372,7 @@ func TestImportWrongKeyType(t *testing.T) {
 	p, _ := pem.Decode([]byte(testrootkey))
 	p.Type = "FOO"
 	brokenkey := pem.EncodeToMemory(p)
-	_, _, err := ImportPem(strings.NewReader(testrootcert + string(brokenkey)))
+	_, err := ImportKeyPem([]byte(testrootcert + string(brokenkey)))
 	if err == nil {
 		t.Fatal("this should fail")
 	}
@@ -383,8 +380,10 @@ func TestImportWrongKeyType(t *testing.T) {
 
 func TestAsIssuer(t *testing.T) {
 	subject := defaultSubject
-	ctx, err := NewCertificateContext(
-		subject, P224, nil, time.Now(), time.Now().AddDate(1, 0, 0))
+	ctx := NewCertificateContext(
+		subject, nil, time.Now(), time.Now().AddDate(1, 0, 0))
+
+	err := ctx.GeneratePrivateKey(P224)
 	if err != nil {
 		t.Fatal(err.Error())
 	}

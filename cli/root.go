@@ -44,9 +44,9 @@ func Execute() {
 }
 
 type signContext struct {
-	genMissing *bool
-	genAll     *bool
-	//genExpired     *bool
+	genMissing     *bool
+	genAll         *bool
+	genExpired     *bool
 	genNewerConfig *bool
 }
 
@@ -83,9 +83,9 @@ func init() {
 			if *ctx.genMissing {
 				strat |= db.GenerateMissing
 			}
-			//if *ctx.genExpired {
-			//	strat |= db.GenerateExpired
-			//}
+			if *ctx.genExpired {
+				strat |= db.GenerateExpired
+			}
 			if *ctx.genNewerConfig {
 				strat |= db.GenerateNewerConfig
 			}
@@ -105,7 +105,7 @@ func init() {
 
 	ctx.genMissing = cmdSign.PersistentFlags().BoolP("generate-missing", "m", true, "generate certificates if missing")
 	ctx.genAll = cmdSign.PersistentFlags().BoolP("generate-all", "a", false, "(re-)generate all certificates")
-	//ctx.genExpired = cmdSign.PersistentFlags().BoolP("generate-expired", "e", false, "regenerate certificats if expired")
+	ctx.genExpired = cmdSign.PersistentFlags().BoolP("generate-expired", "e", false, "regenerate certificats if expired")
 	ctx.genNewerConfig = cmdSign.PersistentFlags().BoolP("generate-outdated", "o", false, "regenerate certificates if config newer than certificates")
 
 	cmdDoc := cobra.Command{

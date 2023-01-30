@@ -17,6 +17,7 @@ import (
 
 	"github.com/wokdav/gopki/generator/cert"
 	"github.com/wokdav/gopki/generator/db"
+	"github.com/wokdav/gopki/logging"
 )
 
 var testrootcert string = `-----BEGIN CERTIFICATE-----
@@ -35,6 +36,12 @@ s+lkvFGbsJmVv8VNRL5YZOvUzbmhRANCAASNtscTl0w3Yrz1eLFBAWX9v0oXv5Z1
 S7ye0vWoPHeDhH3vXSXg89kn9aCEvetSDi//NyxMQ/jRRUeXLio/Lsmg
 -----END PRIVATE KEY-----
 `
+
+func TestMain(m *testing.M) {
+	logging.Initialize(logging.LevelDebug, nil, nil)
+	code := m.Run()
+	os.Exit(code)
+}
 
 func getTestFs(m map[string]string) Filesystem {
 	out := fstest.MapFS{
@@ -298,6 +305,29 @@ func TestDirectoriesAmbiguousAlias(t *testing.T) {
 	}
 }
 
+func TestReuseKey(t *testing.T) {
+	fsdb := getTestFs(
+		map[string]string{
+			"root.yaml": "version: 1\nsubject: CN=Test Root",
+			"root.pem":  testrootkey,
+		},
+	)
+
+	testdb := NewFilesystemDatabase(fsdb)
+	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	f, err := fs.ReadFile(fsdb.Fs(), "root.pem")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if !strings.Contains(string(f), strings.TrimSpace(testrootkey)) {
+		t.Fatal("key has changed")
+	}
+}
+
 func TestDirectoriesNonAmbiguousAlias(t *testing.T) {
 	fsdb := getTestFs(
 		map[string]string{
@@ -340,9 +370,13 @@ func TestEmptyDir(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
-	if err == nil {
-		t.Fatal("empty config folder should fail")
+	ctx, err := quickUpdate(&testdb, db.GenerateMissing)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if len(ctx) != 0 {
+		t.Fatalf("expected 0 certificates to be returned, but got %v", len(ctx))
 	}
 }
 
@@ -374,14 +408,14 @@ func TestWriteCertificates(t *testing.T) {
 func TestGenerateMissing(t *testing.T) {
 	fsdb := getTestFs(
 		map[string]string{
-			"a/sub.yaml": "version: 1\nissuer: root2\nsubject: CN=Test Sub",
+			"a/root1.yaml": "version: 1\nsubject: CN=Test Root 1",
 			//technically this is a root cert, not a sub, but the content doesn't matter for this test
-			"a/sub.pem":  testrootcert + testrootkey,
-			"root2.yaml": "version: 1\nsubject: CN=Test Root",
+			"a/root1.pem": testrootcert + testrootkey,
+			"root2.yaml":  "version: 1\nsubject: CN=Test Root 2",
 		},
 	)
 
-	bBefore, err := fs.ReadFile(fsdb.Fs(), "a/sub.pem")
+	bBefore, err := fs.ReadFile(fsdb.Fs(), "a/root1.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -392,14 +426,14 @@ func TestGenerateMissing(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	//check that sub.pem is unchanged
-	bAfter, err := fs.ReadFile(fsdb.Fs(), "a/sub.pem")
+	//check that root1.pem is unchanged
+	bAfter, err := fs.ReadFile(fsdb.Fs(), "a/root1.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
 	if !bytes.Equal(bBefore, bAfter) {
-		t.Fatalf("expected sub.pem to remain unchanged")
+		t.Fatalf("expected root1.pem to remain unchanged")
 	}
 
 	//check that root2.pem is generated
@@ -430,7 +464,7 @@ func TestGenerateWithImport(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	subCert, _, err := cert.ImportPem(bytes.NewReader(b))
+	subCert, err := cert.ImportCertPem(b)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -789,6 +823,10 @@ func TestNilMapfs(t *testing.T) {
 func TestGenerateNewer(t *testing.T) {
 	today := time.Now()
 	yesterday := today.AddDate(0, 0, -1)
+	tomorrow := today.AddDate(0, 0, 1)
+
+	testpem := testrootcert + testrootkey
+
 	var mpfs fstest.MapFS = map[string]*fstest.MapFile{
 		".": {
 			Mode:    0777 | fs.ModeDir,
@@ -800,14 +838,19 @@ func TestGenerateNewer(t *testing.T) {
 			ModTime: today,
 		},
 		"root.pem": {
-			Data:    []byte(testrootcert),
+			Data:    []byte(testpem),
 			Mode:    0644,
 			ModTime: yesterday,
 		},
-		"root.key": {
-			Data:    []byte(testrootkey),
+		"sub.yaml": {
+			Data:    []byte("version: 1\nsubject: CN=Test Sub\nissuer: root"),
 			Mode:    0644,
-			ModTime: yesterday,
+			ModTime: tomorrow,
+		},
+		"sub.pem": {
+			Data:    []byte(testpem),
+			Mode:    0644,
+			ModTime: tomorrow,
 		},
 	}
 
@@ -823,8 +866,18 @@ func TestGenerateNewer(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	if string(b) == testrootcert {
-		t.Fatal("expect certificate to change")
+	if strings.Contains(string(b), testrootcert) {
+		t.Fatal("expect root certificate to change")
+	}
+
+	//check that sub is regenerated, since root has changed
+	sub, err := mpfs.ReadFile("sub.pem")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if string(sub) == testpem {
+		t.Fatal("expect sub certificate to change")
 	}
 
 	//try another update
@@ -840,6 +893,86 @@ func TestGenerateNewer(t *testing.T) {
 	}
 
 	if !bytes.Equal(b, b2) {
-		t.Fatal("expect certificate not to change")
+		t.Fatal("expect root certificate not to change")
+	}
+}
+
+var expiredCert string = `
+-----BEGIN CERTIFICATE-----
+MIIBIzCByaADAgECAgMAmTAwCgYIKoZIzj0EAwIwGjEYMBYGA1UEAxMPVGVzdFJv
+b3RFeHBpcmVkMB4XDTIzMDIwMjIzMDAwMFoXDTIyMTIzMTIzMDAwMFowGjEYMBYG
+A1UEAxMPVGVzdFJvb3RFeHBpcmVkMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE
+3x3WIsdrhVPVAEfZ4gc7hQcSt7sQhvfljlW0FkbfRFiZ+8rJF1u9TzT+qVb/kClg
+G+pvzO3qGFELnpLPaGZcojAKBggqhkjOPQQDAgNJADBGAiEAztS0dL4f/cV1QEFv
+NQ6z07fnEHc6UHA9iI1KT5Nk2tQCIQDbtvrEtvR1JDjU30ySf4ivBEbffdA0TQKY
+TXDjnyMA5A==
+-----END CERTIFICATE-----`
+
+var expiredKey string = `
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgllR3y5IVNNOvF4Ey
+PFtAq0C/FEMaP50IxaL3swaDkh2hRANCAATfHdYix2uFU9UAR9niBzuFBxK3uxCG
+9+WOVbQWRt9EWJn7yskXW71PNP6pVv+QKWAb6m/M7eoYUQueks9oZlyi
+-----END PRIVATE KEY-----`
+
+func TestGenerateExpired(t *testing.T) {
+	fsdb := getTestFs(
+		map[string]string{
+			"root.yaml": "version: 1\nsubject: CN=TestRootExpired",
+			"root.pem":  expiredCert + "\n" + expiredKey,
+		},
+	)
+
+	testdb := NewFilesystemDatabase(fsdb)
+	_, err := quickUpdate(&testdb, db.GenerateExpired)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	newPem, _ := fs.ReadFile(fsdb.Fs(), "root.pem")
+	if strings.Contains(string(newPem), expiredCert) {
+		t.Fatal("expected certificate to change")
+	}
+}
+
+func TestGenerateExpiredExplicit(t *testing.T) {
+	fsdb := getTestFs(
+		map[string]string{
+			//validity is set in past, so Generate Expired should not update this one
+			"root.yaml": "version: 1\nsubject: CN=TestRootExpired\nvalidity:\n  until: 2000-01-01",
+			"root.pem":  expiredCert + "\n" + expiredKey,
+		},
+	)
+
+	testdb := NewFilesystemDatabase(fsdb)
+	_, err := quickUpdate(&testdb, db.GenerateExpired)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	newPem, _ := fs.ReadFile(fsdb.Fs(), "root.pem")
+	if !strings.Contains(string(newPem), expiredCert) {
+		t.Fatal("expected certificate not to change")
+	}
+}
+
+func TestGenerateExpiredExplicitFuture(t *testing.T) {
+	fsdb := getTestFs(
+		map[string]string{
+			//new generation would not result in an expried certificate, so its ok
+			"root.yaml": "version: 1\nsubject: CN=TestRootExpired\nvalidity:\n  until: 2150-01-01",
+			"root.pem":  expiredCert + "\n" + expiredKey,
+		},
+	)
+
+	testdb := NewFilesystemDatabase(fsdb)
+	_, err := quickUpdate(&testdb, db.GenerateExpired)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	newPem, _ := fs.ReadFile(fsdb.Fs(), "root.pem")
+	if strings.Contains(string(newPem), expiredCert) {
+		t.Fatal("expected certificate to change")
 	}
 }

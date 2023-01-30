@@ -24,8 +24,10 @@ package filesystem
 
 import (
 	"bytes"
+	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -46,6 +48,7 @@ const writePermissions fs.FileMode = 0644
 
 // Is always initialized with a config, will later be provisioned with a cert context.
 type certNode struct {
+	imported       bool
 	configFileName string
 	config.CertificateContent
 	*cert.CertificateContext
@@ -162,11 +165,16 @@ func (fsdb *FsDb) checkConsistency() error {
 	return nil
 }
 
-// TODO: add functionality to reuse existing key
-// TODO: make sure that subordinates are re-generated, if the certificate above changes
-func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n certNode) (bool, error) {
+func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n *certNode, importedCert *cert.Certificate, importedKey crypto.PrivateKey) (bool, error) {
 	if strat&db.GenerateAlways > 0 {
 		logging.Debugf("%v needs update. reson: GenerateAlways is set", n.CertificateContent.Alias)
+		return true, nil
+	}
+
+	issuerNode, exists := fsdb.certNodes[n.CertificateContent.Issuer]
+	if exists && !issuerNode.imported {
+		//issuer was generated, so we need to update as well.
+		logging.Debugf("%v needs update. reson: Issuer has changed", n.CertificateContent.Alias)
 		return true, nil
 	}
 
@@ -194,45 +202,55 @@ func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n certNode) (bool, error)
 		}
 	}
 
-	if strat&db.GenerateExpired > 0 {
-		//TODO
-		return false, errors.New("not implemented")
+	if importedCert != nil && strat&db.GenerateExpired > 0 {
+		if n.CertificateContent.ValidUntil.Before(time.Now()) {
+			logging.Infof("%v has an explicitly set expiration date in the past -> regeneration would be pointless", n.Alias)
+		} else {
+			if importedCert.TBSCertificate.Validity.NotAfter.Before(time.Now()) {
+				logging.Debugf("%v needs update. reason: expired (validNotAfter='%v')",
+					n.CertificateContent.Alias, importedCert.TBSCertificate.Validity.NotAfter)
+				return true, nil
+			}
+		}
 	}
 
-	if strat&db.GenerateMissing > 0 {
-		_, err := statFs.Stat(certfilename)
-		if err != nil && errors.Is(err, fs.ErrNotExist) {
-			logging.Debugf("%v needs update. reson: GenerateMissing is set and Stat returned ErrNotExist", n.CertificateContent.Alias)
-			return true, nil
-		}
+	if (importedKey == nil || importedCert == nil) && strat&db.GenerateMissing > 0 {
+		logging.Debugf("%v needs update. reson: GenerateMissing is set and private key or certificate is missing", n.CertificateContent.Alias)
+		return true, nil
 	}
 
 	return false, nil
 }
 
-func (fsdb *FsDb) importContext(certFile string) (*cert.CertificateContext, error) {
-	logging.Debugf("attempting to import certificate in '%v'", certFile)
+func (fsdb *FsDb) importPemFile(certFile string) (*cert.Certificate, crypto.PrivateKey) {
+	logging.Debugf("attempting to import cert/key in '%v' that we can reuse", certFile)
+
+	var cer *cert.Certificate
+	var key crypto.PrivateKey
+
 	certfi, err := fsdb.filesystem.Fs().Open(certFile)
 	if err != nil {
-		logging.Errorf("import failed: %v", err)
-		return nil, fmt.Errorf("filesystem: unable to open '%v.pem for reading'", certFile)
+		logging.Debugf("import of %v failed: %v", certFile, err)
+		return cer, key
 	}
 	defer certfi.Close()
 
-	cer, key, err := cert.ImportPem(certfi)
+	certfiContent, err := io.ReadAll(certfi)
 	if err != nil {
-		logging.Errorf("import failed: %v", err)
-		return nil, err
+		return cer, key
 	}
 
-	ctx := &cert.CertificateContext{
-		TbsCertificate: &cer.TBSCertificate,
-		PrivateKey:     key,
+	cer, err = cert.ImportCertPem(certfiContent)
+	if err != nil {
+		logging.Infof("certificate import failed: %v", err)
 	}
-	issuerCtx := cert.AsIssuer(*ctx)
-	ctx.Issuer = &issuerCtx
 
-	return ctx, nil
+	key, err = cert.ImportKeyPem(certfiContent)
+	if err != nil {
+		logging.Infof("private key import failed: %v", err)
+	}
+
+	return cer, key
 }
 
 func validateAndMerge(fsdb *FsDb, node *certNode) error {
@@ -289,18 +307,13 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 		//check if we need to upgrade
 		node := fsdb.certNodes[alias]
 		baseName := node.configFileName[:strings.LastIndex(node.configFileName, ".")]
-		update, err := fsdb.needsUpdate(strat, *node)
+
+		logging.Debugf("%v does not need an update", alias)
+		cer, key := fsdb.importPemFile(baseName + ".pem")
+
+		update, err := fsdb.needsUpdate(strat, node, cer, key)
 		if err != nil {
 			return certsGenerated, err
-		}
-
-		if !update {
-			logging.Debugf("%v does not need an update, so we import so we have it in our db", alias)
-			node.CertificateContext, err = fsdb.importContext(baseName + ".pem")
-			if err != nil {
-				return certsGenerated, err
-			}
-			continue
 		}
 
 		//validate and merge profile if applicable
@@ -308,25 +321,41 @@ func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, 
 			return certsGenerated, err
 		}
 
-		logging.Debugf("generating new certificate body for %v", alias)
-		ctx, err := generator.BuildCertBody(node.CertificateContent)
-		if err != nil {
-			return certsGenerated, err
-		}
-
-		node.CertificateContext = ctx
-
-		if len(node.CertificateContent.Issuer) > 0 {
-			logging.Debugf("issuer property for %v is set", alias)
-			issuer := fsdb.certNodes[node.CertificateContent.Issuer]
-			issuerCtx := cert.AsIssuer(*issuer.CertificateContext)
-
-			ctx, err := generator.BuildCertBody(node.CertificateContent)
+		var ctx *cert.CertificateContext
+		var issuerCtx cert.IssuerContext
+		if update {
+			logging.Debugf("generating new certificate body for %v", alias)
+			ctx, err = generator.BuildCertBody(node.CertificateContent, key)
 			if err != nil {
 				return certsGenerated, err
 			}
-			node.CertificateContext = ctx
-			node.CertificateContext.Issuer = &issuerCtx
+
+			if len(node.CertificateContent.Issuer) > 0 {
+				logging.Debugf("issuer property for %v is set", alias)
+				issuer := fsdb.certNodes[node.CertificateContent.Issuer]
+				issuerCtx = cert.AsIssuer(*issuer.CertificateContext)
+			} else {
+				issuerCtx = cert.AsIssuer(*ctx)
+			}
+		} else {
+			if key != nil && cer != nil {
+				ctx = &cert.CertificateContext{
+					TbsCertificate: &cer.TBSCertificate,
+					PrivateKey:     key,
+				}
+				issuerCtx = cert.AsIssuer(*ctx)
+				node.imported = true
+				logging.Debugf("successfully imported context for %v", alias)
+			} else {
+				logging.Debugf("no valid cert and key for %v and not allowed to update. skipping", alias)
+			}
+		}
+
+		ctx.Issuer = &issuerCtx
+		node.CertificateContext = ctx
+
+		if !update {
+			continue
 		}
 
 		//sign
@@ -376,24 +405,12 @@ func (fsdb *FsDb) Update(strat db.UpdateStrategy) error {
 
 	certsGenerated := 0
 
-	var err error
-	//sign root certificates
-	if len(fsdb.rootAliases) == 0 {
-		return errors.New("filesystem: no root certificates to sign with")
-	}
-
-	logging.Debugf("found %v root certificate aliases in database", len(fsdb.rootAliases))
-
 	n, err := fsdb.updateChains(fsdb.rootAliases, strat)
 	if err != nil {
 		return err
 	}
 
 	certsGenerated += n
-
-	//if len(fsdb.certNodes) != certsGenerated {
-	//	return errors.New("some certificates have missing issuers")
-	//}
 
 	err = fsdb.checkConsistency()
 	if err != nil {
@@ -436,7 +453,12 @@ func (fsdb *FsDb) Open() error {
 
 		cfg, err := config.ParseConfig(fi)
 		if err != nil {
-			logging.Infof("skipping %v due to parsing error", d.Name())
+			if config.IsErrorUnknownFile(err) {
+				logging.Infof("skipping %v, since it is not recognized", d.Name())
+			} else {
+				logging.Warningf("%v: %v", d.Name(), err)
+			}
+
 			return nil
 		}
 

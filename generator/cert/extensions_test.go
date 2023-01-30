@@ -81,12 +81,14 @@ func TestSubjectKeyIdNilError(t *testing.T) {
 
 func TestSubjectKeyIdDifferent(t *testing.T) {
 	//check that subjectKeyId is different for different keys
-	tbs1, err := NewCertificateContext(nil, P224, nil, time.Now(), time.Now().Add(testduration))
+	tbs1 := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
+	err := tbs1.GeneratePrivateKey(P224)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	tbs2, err := NewCertificateContext(nil, P224, nil, time.Now(), time.Now().Add(testduration))
+	tbs2 := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
+	err = tbs2.GeneratePrivateKey(P224)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -405,7 +407,9 @@ func TestAuthKeyIdOid(t *testing.T) {
 		t.Fatalf("wrong extension oid: %#v", ext.Id)
 	}
 
-	ctx, _ := NewCertificateContext(nil, P224, nil, time.Now(), time.Now().Add(testduration))
+	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
+	ctx.GeneratePrivateKey(P224)
+	ctx.SetIssuer(AsIssuer(*ctx))
 	ext, err := NewAuthorityKeyIdentifierHash(false, ctx)
 	if err != nil {
 		t.Fatal(err.Error())
@@ -421,7 +425,9 @@ func TestAuthKeyCritical(t *testing.T) {
 		t.Fatal("extension should be critical")
 	}
 
-	ctx, _ := NewCertificateContext(nil, P224, nil, time.Now(), time.Now().Add(testduration))
+	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
+	ctx.GeneratePrivateKey(P224)
+	ctx.SetIssuer(AsIssuer(*ctx))
 	ext, _ = NewAuthorityKeyIdentifierHash(true, ctx)
 	if !ext.Critical {
 		t.Fatal("extension should be critical")
@@ -429,7 +435,9 @@ func TestAuthKeyCritical(t *testing.T) {
 }
 
 func TestAuthKeyNil(t *testing.T) {
-	ctx, _ := NewCertificateContext(nil, P224, nil, time.Now(), time.Now().Add(testduration))
+	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
+	ctx.GeneratePrivateKey(P224)
+	ctx.SetIssuer(AsIssuer(*ctx))
 	ctx.Issuer.publicKeyRaw = nil
 	_, err := NewAuthorityKeyIdentifierHash(true, ctx)
 	if err == nil || !strings.Contains(err.Error(), "key is nil") {
@@ -455,7 +463,9 @@ func TestAuthKeyRawKeyId(t *testing.T) {
 
 func TestAuthKeyHashKeyId(t *testing.T) {
 	expectedPrefix := []byte{0x30, 0x16, 0x80, 0x14}
-	ctx, _ := NewCertificateContext(nil, P224, nil, time.Now(), time.Now().Add(testduration))
+	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
+	ctx.GeneratePrivateKey(P224)
+	ctx.SetIssuer(AsIssuer(*ctx))
 	ext, _ := NewAuthorityKeyIdentifierHash(true, ctx)
 	if !bytes.HasPrefix(ext.Value, expectedPrefix) {
 		t.Fatalf("byte array does not conform: %v", hex.EncodeToString(ext.Value))

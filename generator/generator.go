@@ -7,6 +7,8 @@
 package generator
 
 import (
+	"crypto"
+
 	"github.com/wokdav/gopki/generator/cert"
 	"github.com/wokdav/gopki/generator/config"
 	"github.com/wokdav/gopki/logging"
@@ -17,7 +19,7 @@ import (
 // for each supplied [config.ExtensionConfig], so the side offects of these
 // functions also apply. The function will fail, if any call to Builder()
 // or the certificate generation itself fails.
-func BuildCertBody(c config.CertificateContent) (*cert.CertificateContext, error) {
+func BuildCertBody(c config.CertificateContent, prk crypto.PrivateKey) (*cert.CertificateContext, error) {
 	extBuild := make([]cert.ExtensionBuilder, len(c.Extensions))
 	var err error
 	for i, extCfg := range c.Extensions {
@@ -27,16 +29,21 @@ func BuildCertBody(c config.CertificateContent) (*cert.CertificateContext, error
 			return nil, err
 		}
 	}
-	ctx, err := cert.NewCertificateContext(c.Subject, c.KeyAlgorithm, extBuild,
+	ctx := cert.NewCertificateContext(c.Subject, extBuild,
 		c.ValidFrom, c.ValidUntil)
+
+	if prk == nil {
+		err = ctx.GeneratePrivateKey(c.KeyAlgorithm)
+	} else {
+		ctx.SetPrivateKey(prk)
+	}
+
 	if err != nil {
-		logging.Errorf("can't create certificate context for %v: %v", c.Alias, err.Error())
+		logging.Errorf("can't create private key for %v: %v", c.Alias, err.Error())
 		return nil, err
 	}
 
-	if len(c.Alias) > 0 {
-		ctx.Alias = c.Alias
-	}
+	ctx.SetIssuer(cert.AsIssuer(*ctx))
 
 	return ctx, nil
 }

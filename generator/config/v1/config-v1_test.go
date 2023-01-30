@@ -298,7 +298,7 @@ func TestGenerateExample(t *testing.T) {
 	}
 
 	//generate tbsCertificate
-	ctx, err := generator.BuildCertBody(*cerCfg)
+	ctx, err := generator.BuildCertBody(*cerCfg, nil)
 	if err != nil {
 		t.Fatal(err.Error())
 	}

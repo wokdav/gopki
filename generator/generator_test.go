@@ -30,7 +30,7 @@ func certFromConfig(s string) (*cert.CertificateContext, error) {
 
 	certCfg := cfg.(*config.CertificateContent)
 
-	cert, err := BuildCertBody(*certCfg)
+	cert, err := BuildCertBody(*certCfg, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -49,28 +49,6 @@ func TestGenerateMinimal(t *testing.T) {
 	if cert.TbsCertificate.Subject.String() != expected {
 		t.Fatalf("unexpected subject name. expected '%v', got '%v'",
 			expected, cert.TbsCertificate.Subject.String())
-	}
-}
-
-func TestGenerateAlias(t *testing.T) {
-	cert, err := certFromConfig("version: 1\nsubject: C=DE, CN=MyCertificate\nalias: testAlias")
-	if err != nil || cert == nil {
-		t.Fatalf("error happened (%v) or cert is null", err)
-	}
-
-	if cert.Alias != "testAlias" {
-		t.Fatalf("alias not set correctly")
-	}
-}
-
-func TestGenerateAliasSerial(t *testing.T) {
-	cert, err := certFromConfig("version: 1\nsubject: C=DE, CN=MyCertificate")
-	if err != nil || cert == nil {
-		t.Fatalf("error happened (%v) or cert is null", err)
-	}
-
-	if cert.Alias != cert.SerialNumber.Text(16) {
-		t.Fatalf("alias not set correctly")
 	}
 }
 
@@ -98,14 +76,14 @@ func TestGenerateExtensionsFail(t *testing.T) {
 	subjkeyid.Raw = "!binary:AQIDBA=="
 	certCfg.Extensions[0] = subjkeyid
 
-	_, err = BuildCertBody(*certCfg)
+	_, err = BuildCertBody(*certCfg, nil)
 	if err == nil {
 		t.Fatal("this should fail")
 	}
 }
 
 func TestGenerateEmpty(t *testing.T) {
-	_, err := BuildCertBody(config.CertificateContent{})
+	_, err := BuildCertBody(config.CertificateContent{}, nil)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -114,7 +92,7 @@ func TestGenerateEmpty(t *testing.T) {
 func TestGenerateFail(t *testing.T) {
 	c := config.CertificateContent{}
 	c.KeyAlgorithm = 0xACDC
-	_, err := BuildCertBody(c)
+	_, err := BuildCertBody(c, nil)
 	if err == nil {
 		t.Fatalf("this should fail")
 	}

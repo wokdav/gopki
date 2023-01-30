@@ -28,8 +28,14 @@ func init() {
 	if err != nil {
 		panic("tests are broken")
 	}
-	simpleCertContext, _ = cert.NewCertificateContext(
-		nil, cert.P224, nil, time.Now(), time.Now().Add(testduration))
+	simpleCertContext = cert.NewCertificateContext(
+		nil, nil, time.Now(), time.Now().Add(testduration))
+	err = simpleCertContext.GeneratePrivateKey(cert.P224)
+	if err != nil {
+		panic("tests are broken")
+	}
+
+	simpleCertContext.SetIssuer(cert.AsIssuer(*simpleCertContext))
 }
 
 //go:embed extension_test.json
@@ -790,9 +796,12 @@ func TestAuthKeyIdHash(t *testing.T) {
 		Content:  AuthKeyIdContent{"hash"},
 	}
 
-	extExpect, _ := cert.NewAuthorityKeyIdentifierHash(
+	extExpect, err := cert.NewAuthorityKeyIdentifierHash(
 		true, simpleCertContext,
 	)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
 	buildAndCompare(extCfg, *extExpect, t)
 }

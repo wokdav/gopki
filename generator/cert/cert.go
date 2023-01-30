@@ -9,7 +9,6 @@
 package cert
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -78,7 +77,6 @@ type IssuerContext struct {
 // This includes the entities' private key, certificate data
 // and issuer information.
 type CertificateContext struct {
-	Alias string
 	*TbsCertificate
 	crypto.PrivateKey
 	Issuer     *IssuerContext
@@ -191,56 +189,59 @@ func WritePrivateKeyToPem(prk crypto.PrivateKey, w io.Writer) error {
 	return nil
 }
 
-// Import a certificate and key to yield a [cert.Certificate] and a [crypto.PrivateKey].
-// Like the package in general, it expects exactly one PEM block for
-// the key and one PEM block for the certificate in one reader.
-// If multiple PEM blocks for certificates or keys are supplied, an error is returned.
-// Key's are assumed to be in PKKCS#8 format. Issuer is used to set the
-// [config.IssuerContext] appropriately. If issuer is nil, then the
-// context will be provisioned to yield a self-signed certificate.
-func ImportPem(pemreader io.Reader) (*Certificate, crypto.PrivateKey, error) {
-	bb := bytes.Buffer{}
-	io.Copy(&bb, pemreader)
-
-	var cert *Certificate = nil
-	var key crypto.PrivateKey = nil
-
-	currentBlock := bb.Bytes()
+// Find first block, where blockType is a substring of the block's type
+// and return the bytes in that block.
+func pemFindFirst(pemBytes []byte, blockType string) ([]byte, error) {
+	currentBlock := pemBytes
 	var p *pem.Block
 
-	var err error
 	for {
-		if cert != nil && key != nil {
+		p, currentBlock = pem.Decode(currentBlock)
+		if p == nil {
+			if len(currentBlock) != 0 {
+				return nil, errors.New("can't decode data as PEM")
+			}
+
 			break
 		}
 
-		p, currentBlock = pem.Decode(currentBlock)
-		if p == nil {
-			return nil, nil, errors.New("can't decode data as PEM")
-		}
-
-		switch p.Type {
-		case "CERTIFICATE":
-			if cert != nil {
-				return nil, nil, errors.New("cert: file contains more than one certificate")
-			}
-			cert = &Certificate{}
-			_, err := asn1.Unmarshal(p.Bytes, cert)
-			if err != nil {
-				return nil, nil, err
-			}
-		case "PRIVATE KEY":
-			if key != nil {
-				return nil, nil, errors.New("cert: file contains more than one private key")
-			}
-			key, err = x509.ParsePKCS8PrivateKey(p.Bytes)
-			if err != nil {
-				return nil, nil, err
-			}
+		if strings.Contains(p.Type, blockType) {
+			return p.Bytes, nil
 		}
 	}
 
-	return cert, key, nil
+	return nil, fmt.Errorf("no block containing '%v' was found", blockType)
+}
+
+// Find first PRIVATE KEY in the provided reader and return it
+func ImportKeyPem(pemBytes []byte) (crypto.PrivateKey, error) {
+	keyBytes, err := pemFindFirst(pemBytes, "PRIVATE KEY")
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := x509.ParsePKCS8PrivateKey(keyBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return key, nil
+}
+
+// Find first CERTIFICATE in the provided reader, then unmarshal and return it
+func ImportCertPem(pemBytes []byte) (*Certificate, error) {
+	certBytes, err := pemFindFirst(pemBytes, "CERTIFICATE")
+	if err != nil {
+		return nil, err
+	}
+
+	cert := &Certificate{}
+	_, err = asn1.Unmarshal(certBytes, cert)
+	if err != nil {
+		return nil, err
+	}
+
+	return cert, nil
 }
 
 // Syntactic sugar to yield a [config.IssuerContext] from a
@@ -329,6 +330,35 @@ var keyTypes map[KeyAlgorithm]keyType = map[KeyAlgorithm]keyType{
 	BrainpoolP512t1: ecKey,
 }
 
+var curves map[KeyAlgorithm]elliptic.Curve
+var curveOids map[string][]byte
+
+func init() {
+	curves = make(map[KeyAlgorithm]elliptic.Curve, 10)
+	curves[P224] = elliptic.P224()
+	curves[P256] = elliptic.P256()
+	curves[P384] = elliptic.P384()
+	curves[P521] = elliptic.P521()
+	curves[BrainpoolP256r1] = brainpool.P256r1()
+	curves[BrainpoolP384r1] = brainpool.P384r1()
+	curves[BrainpoolP512r1] = brainpool.P512r1()
+	curves[BrainpoolP256t1] = brainpool.P256t1()
+	curves[BrainpoolP384t1] = brainpool.P384t1()
+	curves[BrainpoolP512t1] = brainpool.P512t1()
+
+	curveOids = make(map[string][]byte, 10)
+	curveOids[curves[P224].Params().Name], _ = asn1.Marshal(oidP224)
+	curveOids[curves[P256].Params().Name], _ = asn1.Marshal(oidP256)
+	curveOids[curves[P384].Params().Name], _ = asn1.Marshal(oidP384)
+	curveOids[curves[P521].Params().Name], _ = asn1.Marshal(oidP521)
+	curveOids[curves[BrainpoolP256r1].Params().Name], _ = asn1.Marshal(oidBrainpoolP256r1)
+	curveOids[curves[BrainpoolP384r1].Params().Name], _ = asn1.Marshal(oidBrainpoolP384r1)
+	curveOids[curves[BrainpoolP512r1].Params().Name], _ = asn1.Marshal(oidBrainpoolP512r1)
+	curveOids[curves[BrainpoolP256t1].Params().Name], _ = asn1.Marshal(oidBrainpoolP256t1)
+	curveOids[curves[BrainpoolP384t1].Params().Name], _ = asn1.Marshal(oidBrainpoolP384t1)
+	curveOids[curves[BrainpoolP512t1].Params().Name], _ = asn1.Marshal(oidBrainpoolP512t1)
+}
+
 var sigAlgOids map[SignatureAlgorithm]asn1.ObjectIdentifier = map[SignatureAlgorithm]asn1.ObjectIdentifier{
 	RSAwithSHA1:     oidRSAWithSHA1,
 	RSAwithSHA256:   oidRSAWithSHA256,
@@ -340,78 +370,61 @@ var sigAlgOids map[SignatureAlgorithm]asn1.ObjectIdentifier = map[SignatureAlgor
 	ECDSAwithSHA512: oidECDSAWithSHA512,
 }
 
-func resolveCurve(alg KeyAlgorithm) ([]byte, elliptic.Curve, error) {
-	var curve elliptic.Curve
-	var curveParam []byte
-	var err error
-
-	switch alg {
-	case P224:
-		curveParam, _ = asn1.Marshal(oidP224)
-		curve = elliptic.P224()
-	case P256:
-		curveParam, _ = asn1.Marshal(oidP256)
-		curve = elliptic.P256()
-	case P384:
-		curveParam, _ = asn1.Marshal(oidP384)
-		curve = elliptic.P384()
-	case P521:
-		curveParam, _ = asn1.Marshal(oidP521)
-		curve = elliptic.P521()
-	case BrainpoolP256r1:
-		curveParam, _ = asn1.Marshal(oidBrainpoolP256r1)
-		curve = brainpool.P256r1()
-	case BrainpoolP384r1:
-		curveParam, _ = asn1.Marshal(oidBrainpoolP384r1)
-		curve = brainpool.P384r1()
-	case BrainpoolP512r1:
-		curveParam, _ = asn1.Marshal(oidBrainpoolP512r1)
-		curve = brainpool.P512r1()
-	case BrainpoolP256t1:
-		curveParam, _ = asn1.Marshal(oidBrainpoolP256t1)
-		curve = brainpool.P256t1()
-	case BrainpoolP384t1:
-		curveParam, _ = asn1.Marshal(oidBrainpoolP384t1)
-		curve = brainpool.P384t1()
-	case BrainpoolP512t1:
-		curveParam, _ = asn1.Marshal(oidBrainpoolP512t1)
-		curve = brainpool.P512t1()
-	default:
-		err = fmt.Errorf("cert: incompatible key algorithm for ECDSA: %v", alg)
+func (ctx *CertificateContext) SetPrivateKey(key crypto.PrivateKey) error {
+	ctx.PrivateKey = key
+	rsaKey, ok := key.(*rsa.PrivateKey)
+	if ok {
+		ctx.TbsCertificate.PublicKey.Algorithm.Algorithm = oidRsaEncryption
+		ctx.TbsCertificate.PublicKey.Algorithm.Parameters = asn1.NullRawValue
+		ctx.TbsCertificate.PublicKey.PublicKey.Bytes = x509.MarshalPKCS1PublicKey(&rsaKey.PublicKey)
+		return nil
 	}
 
-	return curveParam, curve, err
+	ecKey, ok := key.(*ecdsa.PrivateKey)
+	if ok {
+		oid, exists := curveOids[ecKey.Params().Name]
+
+		if !exists {
+			return fmt.Errorf("cert: can't import private key, since the curve '%v' is unknown", ecKey.Params().Name)
+		}
+		_, err := asn1.Unmarshal(oid, &ctx.TbsCertificate.PublicKey.Algorithm.Parameters)
+		if err != nil {
+			return err
+		}
+		ctx.TbsCertificate.PublicKey.Algorithm.Algorithm = oidEcPublicKey
+		if err != nil {
+			return err
+		}
+
+		ctx.TbsCertificate.PublicKey.PublicKey.Bytes = elliptic.Marshal(ecKey.Curve, ecKey.PublicKey.X, ecKey.PublicKey.Y)
+		curveParam, exists := curveOids[ecKey.Params().Name]
+		if !exists {
+			return fmt.Errorf("cert: unknown ec key curve: %v", ecKey.Params().Name)
+		}
+		_, err = asn1.Unmarshal(curveParam, &ctx.TbsCertificate.PublicKey.Algorithm.Parameters)
+		if err != nil {
+			return err
+		}
+	}
+
+	return errors.New("cert: private key neither compatible with ecdsa.PrivateKey nor with rsa.PrivateKey")
 }
 
-// This is the intended way to generate a new [cert.CertificateContext].
-// It always generates a new key corresponding to the keyAlg argument.
-//
-// The function applies the following defaults:
-// - SerialNumber is always random
-// - If subject is nil, it will be set to "CN=DummyCertificate"
-// - The context is built to be self-signed. If this is not intended, issuer context should be changed afterwards accordingly.
-// - The alias is set to a hexadecimal representation of the serial number
-// - Time values are converted to UTC
-// - The extensions will be generated after calling the [cert.Sign] function
-func NewCertificateContext(subject pkix.RDNSequence, keyAlg KeyAlgorithm, ext []ExtensionBuilder, validNotBefore time.Time, validNotAfter time.Time) (*CertificateContext, error) {
-	tbs := TbsCertificate{}
-	tbs.Version = 2
-	tbs.SerialNumber = new(big.Int).Rand(defaultRandom, snMax)
+func (ctx *CertificateContext) SetIssuer(issuerCtx IssuerContext) {
+	ctx.TbsCertificate.Issuer = issuerCtx.issuerDn
+	ctx.Issuer = &issuerCtx
+}
 
-	tbs.Validity.NotBefore = validNotBefore.UTC()
-	tbs.Validity.NotAfter = validNotAfter.UTC()
-	if subject != nil {
-		tbs.Subject = subject
-	} else {
-		tbs.Subject = defaultSubject
-	}
-
+func (ctx *CertificateContext) GeneratePrivateKey(keyAlg KeyAlgorithm) error {
 	var err error
 	var prk crypto.PrivateKey
-	if keyTypes[keyAlg] == rsaKey {
-		tbs.PublicKey.Algorithm.Algorithm = oidRsaEncryption
-		tbs.PublicKey.Algorithm.Parameters = asn1.NullRawValue
 
+	keyType, exists := keyTypes[keyAlg]
+	if !exists {
+		return fmt.Errorf("cert: illegal key algorithm: %#v", keyAlg)
+	}
+
+	if keyType == rsaKey {
 		var prkTmp *rsa.PrivateKey
 		var bitSize int
 		switch keyAlg {
@@ -424,44 +437,68 @@ func NewCertificateContext(subject pkix.RDNSequence, keyAlg KeyAlgorithm, ext []
 		case RSA8192:
 			bitSize = 8192
 		default:
-			return nil, fmt.Errorf("cert: incompatible key algorithm for RSA: %v", keyAlg)
+			return fmt.Errorf("cert: incompatible key algorithm for RSA: %v", keyAlg)
 		}
 
 		prkTmp, err = rsa.GenerateKey(defaultRandom, bitSize)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
-		tbs.PublicKey.PublicKey.Bytes = x509.MarshalPKCS1PublicKey(&prkTmp.PublicKey)
+		ctx.TbsCertificate.PublicKey.PublicKey.Bytes = x509.MarshalPKCS1PublicKey(&prkTmp.PublicKey)
 		prk = prkTmp
 	} else {
-		tbs.PublicKey.Algorithm.Algorithm = oidEcPublicKey
 		var prkTmp *ecdsa.PrivateKey
 		var curve elliptic.Curve
-		var curveParam []byte
 
-		curveParam, curve, err = resolveCurve(keyAlg)
-		if err != nil {
-			return nil, err
+		curve, exists := curves[keyAlg]
+		if !exists {
+			return fmt.Errorf("cert: unknown ec key algorithm identifier: %v", keyAlg)
 		}
 
-		prkTmp, _ = ecdsa.GenerateKey(curve, defaultRandom)
-		asn1.Unmarshal(curveParam, &tbs.PublicKey.Algorithm.Parameters)
-		tbs.PublicKey.PublicKey.Bytes = elliptic.Marshal(curve, prkTmp.PublicKey.X, prkTmp.PublicKey.Y)
+		prkTmp, err = ecdsa.GenerateKey(curve, defaultRandom)
+		if err != nil {
+			return err
+		}
 		prk = prkTmp
 	}
 
-	//by default assume to be self-signed
-	defaultAlias := tbs.SerialNumber.Text(16)
+	ctx.SetPrivateKey(prk)
+
+	return nil
+}
+
+// This is the intended way to generate a new [cert.CertificateContext].
+// It always generates a new key corresponding to the keyAlg argument.
+//
+// The function applies the following defaults:
+// - SerialNumber is always random
+// - If subject is nil, it will be set to "CN=DummyCertificate"
+// - The context is built to be self-signed. If this is not intended, issuer context should be changed afterwards accordingly.
+// - The alias is set to a hexadecimal representation of the serial number
+// - Time values are converted to UTC
+// - The extensions will be generated after calling the [cert.Sign] function
+func NewCertificateContext(subject pkix.RDNSequence, ext []ExtensionBuilder, validNotBefore time.Time, validNotAfter time.Time) *CertificateContext {
+	tbs := TbsCertificate{}
+	tbs.Version = 2
+	tbs.SerialNumber = new(big.Int).Rand(defaultRandom, snMax)
+
+	tbs.Validity.NotBefore = validNotBefore.UTC()
+	tbs.Validity.NotAfter = validNotAfter.UTC()
+	if subject != nil {
+		tbs.Subject = subject
+	} else {
+		tbs.Subject = defaultSubject
+	}
 
 	tbs.Issuer = tbs.Subject
-	ctx := CertificateContext{defaultAlias, &tbs, prk, &IssuerContext{
-		PrivateKey:   prk,
+	ctx := CertificateContext{&tbs, nil, &IssuerContext{
+		PrivateKey:   nil,
 		publicKeyRaw: tbs.PublicKey.PublicKey.Bytes,
 		issuerDn:     tbs.Subject,
 	}, ext}
 
-	return &ctx, nil
+	return &ctx
 }
 
 func resolveAlg(alg SignatureAlgorithm) (crypto.Hash, hash.Hash, asn1.ObjectIdentifier, keyType, error) {
@@ -531,8 +568,7 @@ func (c *CertificateContext) Sign(alg SignatureAlgorithm) (*Certificate, error) 
 	out := Certificate{}
 	out.TBSCertificate = *c.TbsCertificate
 
-	// create issuer context for self-signed certificate
-	if c.Issuer == nil {
+	if c.Issuer == nil || c.Issuer.PrivateKey == nil {
 		return nil, errors.New("cert: provided IssuerContext is nil. can't sign")
 	}
 

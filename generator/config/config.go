@@ -34,6 +34,21 @@ import (
 	"github.com/ghodss/yaml"
 )
 
+type ErrorUnknownFile string
+
+func (e ErrorUnknownFile) Error() string {
+	return string(e)
+}
+
+func IsErrorUnknownFile(err error) bool {
+	switch err.(type) {
+	case ErrorUnknownFile:
+		return true
+	}
+
+	return false
+}
+
 var configurators map[int]Configurator = make(map[int]Configurator, 1)
 
 // Configuration implementations register themselves using this function.
@@ -78,12 +93,12 @@ func ParseConfig(r io.Reader) (any, error) {
 	var proxy configProxy
 	err = yaml.Unmarshal([]byte(cfgstr), &proxy)
 	if err != nil {
-		return nil, errors.New("config: top level must be a map containg a key called 'version' that contains an integer")
+		return nil, ErrorUnknownFile("config: top level must be a map containg a key called 'version' that contains an integer")
 	}
 
-	configurator, prs := configurators[proxy.Version]
-	if !prs {
-		return nil, fmt.Errorf("config: unknown version: %d", proxy.Version)
+	configurator, err := GetConfigurator(proxy.Version)
+	if err != nil {
+		return nil, err
 	}
 
 	return configurator.ParseConfiguration(cfgstr)
