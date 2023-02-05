@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -36,6 +37,56 @@ s+lkvFGbsJmVv8VNRL5YZOvUzbmhRANCAASNtscTl0w3Yrz1eLFBAWX9v0oXv5Z1
 S7ye0vWoPHeDhH3vXSXg89kn9aCEvetSDi//NyxMQ/jRRUeXLio/Lsmg
 -----END PRIVATE KEY-----
 `
+
+func copyFilesIntoMapFs(path string) (*fstest.MapFS, error) {
+	abspath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+
+	out := fstest.MapFS{}
+	err = fs.WalkDir(os.DirFS(abspath), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		f, err := os.Open(abspath + string(os.PathSeparator) + path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		buf := bytes.NewBuffer(nil)
+		_, err = buf.ReadFrom(f)
+		if err != nil {
+			return err
+		}
+
+		//get modTime for file
+		fi, err := f.Stat()
+		if err != nil {
+			return err
+		}
+
+		out[path] = &fstest.MapFile{
+			Data:    buf.Bytes(),
+			Mode:    0644,
+			ModTime: fi.ModTime(),
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &out, nil
+}
 
 func TestMain(m *testing.M) {
 	logging.Initialize(logging.LevelDebug, nil, nil)
@@ -533,11 +584,13 @@ func TestCircle(t *testing.T) {
 }
 
 func TestBuildExamples(t *testing.T) {
-	//TODO: copy files to internal db to avoid working on the real thing
-	p := `../../../examples/smime/`
+	mpfs, err := copyFilesIntoMapFs("../../../examples")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
-	testdb := NewFilesystemDatabase(NewNativeFs(p))
-	_, err := quickUpdate(&testdb, db.GenerateAlways)
+	testdb := NewFilesystemDatabase(NewMapFs(*mpfs))
+	_, err = quickUpdate(&testdb, db.GenerateAlways)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
