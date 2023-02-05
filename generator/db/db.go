@@ -21,9 +21,9 @@ type CertificateDatabase interface {
 type UpdateStrategy uint8
 
 const (
-	GenerateNever       UpdateStrategy = 0
-	GenerateMissing     UpdateStrategy = 1
-	GenerateExpired     UpdateStrategy = 2
-	GenerateNewerConfig UpdateStrategy = 4
-	GenerateAlways      UpdateStrategy = 8
+	UpdateNone        UpdateStrategy = 0
+	UpdateMissing     UpdateStrategy = 1
+	UpdateExpired     UpdateStrategy = 2
+	UpdateNewerConfig UpdateStrategy = 4
+	UpdateAll         UpdateStrategy = 8
 )

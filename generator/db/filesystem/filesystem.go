@@ -128,8 +128,8 @@ type FsDb struct {
 // Create a new file system database based on the provided implementation.
 // This function pre-allocates about 2K+ KB of arrays to minimize re-allocation,
 // so it should be used consciously.
-func NewFilesystemDatabase(filesystem Filesystem) FsDb {
-	return FsDb{
+func NewFilesystemDatabase(filesystem Filesystem) db.CertificateDatabase {
+	return &FsDb{
 		filesystem: filesystem,
 		//certNodes must store pointers, because we want to change the content
 		certNodes:     make(map[string]*certNode, 1024),
@@ -166,7 +166,7 @@ func (fsdb *FsDb) checkConsistency() error {
 }
 
 func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n *certNode, importedCert *cert.Certificate, importedKey crypto.PrivateKey) (bool, error) {
-	if strat&db.GenerateAlways > 0 {
+	if strat&db.UpdateAll > 0 {
 		logging.Debugf("%v needs update. reson: GenerateAlways is set", n.CertificateContent.Alias)
 		return true, nil
 	}
@@ -184,7 +184,7 @@ func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n *certNode, importedCert
 	}
 
 	certfilename := n.configFileName[:strings.LastIndex(n.configFileName, ".")] + ".pem"
-	if strat&db.GenerateNewerConfig > 0 {
+	if strat&db.UpdateNewerConfig > 0 {
 		infoPem, err := statFs.Stat(certfilename)
 		if err != nil {
 			return false, err
@@ -202,7 +202,7 @@ func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n *certNode, importedCert
 		}
 	}
 
-	if importedCert != nil && strat&db.GenerateExpired > 0 {
+	if importedCert != nil && strat&db.UpdateExpired > 0 {
 		if n.CertificateContent.ValidUntil.Before(time.Now()) {
 			logging.Infof("%v has an explicitly set expiration date in the past -> regeneration would be pointless", n.Alias)
 		} else {
@@ -214,7 +214,7 @@ func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n *certNode, importedCert
 		}
 	}
 
-	if (importedKey == nil || importedCert == nil) && strat&db.GenerateMissing > 0 {
+	if (importedKey == nil || importedCert == nil) && strat&db.UpdateMissing > 0 {
 		logging.Debugf("%v needs update. reson: GenerateMissing is set and private key or certificate is missing", n.CertificateContent.Alias)
 		return true, nil
 	}

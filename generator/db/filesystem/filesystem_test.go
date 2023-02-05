@@ -111,7 +111,7 @@ func getTestFs(m map[string]string) Filesystem {
 	return NewMapFs(out)
 }
 
-func quickUpdate(testdb *FsDb, strat db.UpdateStrategy) ([]cert.CertificateContext, error) {
+func quickUpdate(testdb db.CertificateDatabase, strat db.UpdateStrategy) ([]cert.CertificateContext, error) {
 	err := testdb.Open()
 	if err != nil {
 		return nil, err
@@ -131,14 +131,6 @@ func quickUpdate(testdb *FsDb, strat db.UpdateStrategy) ([]cert.CertificateConte
 	return ctx, nil
 }
 
-func TestImplementsDb(t *testing.T) {
-	//this produces a compile-time error, if FsDb does not implement
-	//the CertificateDatabase interface
-	testdb := NewFilesystemDatabase(getTestFs(
-		map[string]string{}))
-	var _ db.CertificateDatabase = &testdb
-}
-
 func TestSmoke(t *testing.T) {
 	fs := getTestFs(
 		map[string]string{
@@ -149,7 +141,7 @@ func TestSmoke(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	ctx, err := quickUpdate(&testdb, db.GenerateMissing)
+	ctx, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -168,7 +160,7 @@ func TestNoRoot(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err == nil {
 		t.Fatal("certification paths with no roots should fail")
 	}
@@ -184,7 +176,7 @@ func TestPartial(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err == nil {
 		t.Fatal("certification that can't be fully built should yield an error")
 	}
@@ -199,7 +191,7 @@ func TestCeckIssuer(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -278,7 +270,7 @@ func TestSingle(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	ctx, err := quickUpdate(&testdb, db.GenerateMissing)
+	ctx, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -319,7 +311,7 @@ func TestDirectories(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	ctx, err := quickUpdate(&testdb, db.GenerateMissing)
+	ctx, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -350,7 +342,7 @@ func TestDirectoriesAmbiguousAlias(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err == nil {
 		t.Fatal("this should fail")
 	}
@@ -365,7 +357,7 @@ func TestReuseKey(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -390,7 +382,7 @@ func TestDirectoriesNonAmbiguousAlias(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -405,7 +397,7 @@ func TestIgnoreBad(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	ctx, err := quickUpdate(&testdb, db.GenerateMissing)
+	ctx, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -421,7 +413,7 @@ func TestEmptyDir(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	ctx, err := quickUpdate(&testdb, db.GenerateMissing)
+	ctx, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -440,7 +432,7 @@ func TestWriteCertificates(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -472,7 +464,7 @@ func TestGenerateMissing(t *testing.T) {
 	}
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err = quickUpdate(&testdb, db.GenerateMissing)
+	_, err = quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -504,7 +496,7 @@ func TestGenerateWithImport(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -577,7 +569,7 @@ func TestCircle(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err == nil {
 		t.Fatalf("circular dependencies should fail")
 	}
@@ -590,7 +582,7 @@ func TestBuildExamples(t *testing.T) {
 	}
 
 	testdb := NewFilesystemDatabase(NewMapFs(*mpfs))
-	_, err = quickUpdate(&testdb, db.GenerateAlways)
+	_, err = quickUpdate(testdb, db.UpdateAll)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -604,7 +596,7 @@ func TestBugWrongKeyAlg(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -640,7 +632,7 @@ func TestBugWrongKeyAlgRsa(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -675,7 +667,7 @@ func TestBugWrongDate(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -716,7 +708,7 @@ func TestBugWrongAuthKeyId(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -759,7 +751,7 @@ func TestProfileSmoke(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	ctx, err := quickUpdate(&testdb, db.GenerateMissing)
+	ctx, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -787,7 +779,7 @@ func TestValidateFail(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err == nil {
 		t.Fatal("this should fail")
 	}
@@ -805,7 +797,7 @@ func TestUnknownProfile(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	_, err := quickUpdate(&testdb, db.GenerateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err == nil {
 		t.Fatal("this should fail")
 	}
@@ -908,7 +900,7 @@ func TestGenerateNewer(t *testing.T) {
 	}
 
 	testdb := NewFilesystemDatabase(NewMapFs(mpfs))
-	_, err := quickUpdate(&testdb, db.GenerateNewerConfig)
+	_, err := quickUpdate(testdb, db.UpdateNewerConfig)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -934,7 +926,7 @@ func TestGenerateNewer(t *testing.T) {
 	}
 
 	//try another update
-	_, err = quickUpdate(&testdb, db.GenerateNewerConfig)
+	_, err = quickUpdate(testdb, db.UpdateNewerConfig)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -977,7 +969,7 @@ func TestGenerateExpired(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateExpired)
+	_, err := quickUpdate(testdb, db.UpdateExpired)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -998,7 +990,7 @@ func TestGenerateExpiredExplicit(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateExpired)
+	_, err := quickUpdate(testdb, db.UpdateExpired)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -1019,7 +1011,7 @@ func TestGenerateExpiredExplicitFuture(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	_, err := quickUpdate(&testdb, db.GenerateExpired)
+	_, err := quickUpdate(testdb, db.UpdateExpired)
 	if err != nil {
 		t.Fatal(err.Error())
 	}

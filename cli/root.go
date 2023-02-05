@@ -75,22 +75,22 @@ func init() {
 			defer fsdb.Close()
 
 			//infer generation strategy
-			var strat db.UpdateStrategy = db.GenerateNever
+			var strat db.UpdateStrategy = db.UpdateNone
 
 			if *ctx.genAll {
-				strat |= db.GenerateAlways
+				strat |= db.UpdateAll
 			}
 			if *ctx.genMissing {
-				strat |= db.GenerateMissing
+				strat |= db.UpdateMissing
 			}
 			if *ctx.genExpired {
-				strat |= db.GenerateExpired
+				strat |= db.UpdateExpired
 			}
 			if *ctx.genNewerConfig {
-				strat |= db.GenerateNewerConfig
+				strat |= db.UpdateNewerConfig
 			}
 
-			if strat == db.GenerateNever {
+			if strat == db.UpdateNone {
 				fmt.Println("all generate-flags set to false. nothing to do.")
 				os.Exit(0)
 			}
