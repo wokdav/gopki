@@ -69,8 +69,8 @@ type publicKeyInfo struct {
 // use the raw public key of the issuer to calculate a hash.
 type IssuerContext struct {
 	crypto.PrivateKey
-	publicKeyRaw []byte
-	issuerDn     pkix.RDNSequence
+	PublicKeyRaw []byte
+	IssuerDn     pkix.RDNSequence
 }
 
 // Represents all information about an entity prior to signing.
@@ -248,8 +248,8 @@ func ImportCertPem(pemBytes []byte) (*Certificate, error) {
 // [config.CertificateContext].
 func AsIssuer(c CertificateContext) IssuerContext {
 	return IssuerContext{
-		publicKeyRaw: c.PublicKey.PublicKey.Bytes,
-		issuerDn:     c.Subject,
+		PublicKeyRaw: c.PublicKey.PublicKey.Bytes,
+		IssuerDn:     c.Subject,
 		PrivateKey:   c.PrivateKey,
 	}
 }
@@ -411,7 +411,7 @@ func (ctx *CertificateContext) SetPrivateKey(key crypto.PrivateKey) error {
 }
 
 func (ctx *CertificateContext) SetIssuer(issuerCtx IssuerContext) {
-	ctx.TbsCertificate.Issuer = issuerCtx.issuerDn
+	ctx.TbsCertificate.Issuer = issuerCtx.IssuerDn
 	ctx.Issuer = &issuerCtx
 }
 
@@ -494,8 +494,8 @@ func NewCertificateContext(subject pkix.RDNSequence, ext []ExtensionBuilder, val
 	tbs.Issuer = tbs.Subject
 	ctx := CertificateContext{&tbs, nil, &IssuerContext{
 		PrivateKey:   nil,
-		publicKeyRaw: tbs.PublicKey.PublicKey.Bytes,
-		issuerDn:     tbs.Subject,
+		PublicKeyRaw: tbs.PublicKey.PublicKey.Bytes,
+		IssuerDn:     tbs.Subject,
 	}, ext}
 
 	return &ctx
@@ -575,7 +575,7 @@ func (c *CertificateContext) Sign(alg SignatureAlgorithm) (*Certificate, error) 
 	out.TBSCertificate.SignatureAlgorithm = pkix.AlgorithmIdentifier{
 		Algorithm: sigAlgOids[alg],
 	}
-	out.TBSCertificate.Issuer = c.Issuer.issuerDn
+	out.TBSCertificate.Issuer = c.Issuer.IssuerDn
 
 	//generate extensions as late as possible
 	out.TBSCertificate.Extensions = make([]pkix.Extension, len(c.Extensions))

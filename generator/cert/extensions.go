@@ -382,12 +382,12 @@ func NewAuthorityKeyIdentifierFromStruct(critical bool, rawAuthkeyId AuthorityKe
 // This function generates the ID by calculating the SHA-1 hash of the provided
 // public key of the IssuerContext.
 func NewAuthorityKeyIdentifierHash(critical bool, ctx *CertificateContext) (*pkix.Extension, error) {
-	if ctx.Issuer == nil || ctx.Issuer.publicKeyRaw == nil {
+	if ctx.Issuer == nil || ctx.Issuer.PublicKeyRaw == nil {
 		return nil, errors.New("extensions: issuer public key is nil, hash would be pointless")
 	}
 
 	hashAlg := crypto.SHA1.New()
-	hashAlg.Write(ctx.Issuer.publicKeyRaw)
+	hashAlg.Write(ctx.Issuer.PublicKeyRaw)
 	keyIdStruct := AuthorityKeyIdentifier{KeyIdentifier: hashAlg.Sum(nil)}
 
 	keyIdMarshalled, err := asn1.Marshal(keyIdStruct)

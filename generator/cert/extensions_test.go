@@ -438,7 +438,7 @@ func TestAuthKeyNil(t *testing.T) {
 	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
 	ctx.GeneratePrivateKey(P224)
 	ctx.SetIssuer(AsIssuer(*ctx))
-	ctx.Issuer.publicKeyRaw = nil
+	ctx.Issuer.PublicKeyRaw = nil
 	_, err := NewAuthorityKeyIdentifierHash(true, ctx)
 	if err == nil || !strings.Contains(err.Error(), "key is nil") {
 		t.Fatal("expected error due to nil key")

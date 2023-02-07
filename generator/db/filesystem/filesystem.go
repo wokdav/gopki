@@ -24,7 +24,6 @@ package filesystem
 
 import (
 	"bytes"
-	"crypto"
 	"errors"
 	"fmt"
 	"io"
@@ -35,7 +34,6 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/wokdav/gopki/generator"
 	"github.com/wokdav/gopki/generator/cert"
 	"github.com/wokdav/gopki/generator/config"
 	"github.com/wokdav/gopki/generator/db"
@@ -46,27 +44,26 @@ import (
 
 const writePermissions fs.FileMode = 0644
 
-// Is always initialized with a config, will later be provisioned with a cert context.
-type certNode struct {
-	imported       bool
-	configFileName string
-	config.CertificateContent
-	*cert.CertificateContext
-}
-
 // Wrappers for fs.FS with some write functionality.
 // If go adds this feature to fs.Fs, we can remove this code.
+// It is also a superset of the fs.StatFs interface.
 type Filesystem interface {
-	Fs() fs.FS
+	FS() fs.FS
 	WriteFile(name string, content []byte) error
+	Stat(name string) (os.FileInfo, error)
 }
 
 type mapfs struct {
-	m map[string]*fstest.MapFile
+	fsobj fs.FS
+	m     map[string]*fstest.MapFile
 }
 
-func (m mapfs) Fs() fs.FS {
-	return fstest.MapFS(m.m)
+func (m mapfs) FS() fs.FS {
+	return m.fsobj
+}
+
+func (m mapfs) Stat(name string) (os.FileInfo, error) {
+	return fstest.MapFS(m.m).Stat(name)
 }
 
 func (m mapfs) WriteFile(name string, content []byte) error {
@@ -82,9 +79,10 @@ func (m mapfs) WriteFile(name string, content []byte) error {
 func NewMapFs(m fstest.MapFS) Filesystem {
 	switch m {
 	case nil:
-		return mapfs{m: fstest.MapFS{".": &fstest.MapFile{Mode: 0777 | fs.ModeDir}}}
+		f := fstest.MapFS{".": &fstest.MapFile{Mode: 0777 | fs.ModeDir}}
+		return mapfs{m: f, fsobj: fstest.MapFS(f)}
 	default:
-		return mapfs{m}
+		return mapfs{m, fstest.MapFS(m)}
 	}
 }
 
@@ -93,8 +91,12 @@ type nativefs struct {
 	fsObj    fs.FS
 }
 
-func (n nativefs) Fs() fs.FS {
+func (n nativefs) FS() fs.FS {
 	return n.fsObj
+}
+
+func (n nativefs) Stat(name string) (os.FileInfo, error) {
+	return os.Stat(n.basepath + string(os.PathSeparator) + name)
 }
 
 func (n nativefs) WriteFile(name string, content []byte) error {
@@ -110,6 +112,12 @@ func NewNativeFs(path string) Filesystem {
 	return nativefs{basepath: path, fsObj: os.DirFS(path)}
 }
 
+type fsEntity struct {
+	*db.DbEntity
+	configFile        string
+	lastArtifactWrite time.Time
+}
+
 // It effectively builds a graph of certificate nodes and issuer-relations as edges.
 // This allows building certificate hierarchies without imposing an explicit structure
 // on the file system, since everything is derived from the configuration files first.
@@ -118,8 +126,8 @@ func NewNativeFs(path string) Filesystem {
 type FsDb struct {
 	//filesystem fs.FS
 	filesystem Filesystem
-	certNodes  map[string]*certNode //greedily stores all cert nodes
-	profiles   map[string]config.CertificateProfile
+	entities   map[string]*fsEntity //greedily stores all cert nodes
+	profiles   map[string]*config.CertificateProfile
 
 	rootAliases   []string            //aliases of all root certificates
 	subscribersOf map[string][]string //gets all subordinate aliases for the key alias
@@ -128,304 +136,231 @@ type FsDb struct {
 // Create a new file system database based on the provided implementation.
 // This function pre-allocates about 2K+ KB of arrays to minimize re-allocation,
 // so it should be used consciously.
-func NewFilesystemDatabase(filesystem Filesystem) db.CertificateDatabase {
+func NewFilesystemDatabase(filesystem Filesystem) db.Database {
 	return &FsDb{
 		filesystem: filesystem,
 		//certNodes must store pointers, because we want to change the content
-		certNodes:     make(map[string]*certNode, 1024),
-		profiles:      make(map[string]config.CertificateProfile, 32),
+		entities:      make(map[string]*fsEntity, 1024),
+		profiles:      make(map[string]*config.CertificateProfile, 32),
 		rootAliases:   make([]string, 0, 128),
 		subscribersOf: make(map[string][]string, 1024),
 	}
 }
 
-func (fsdb *FsDb) checkConsistency() error {
-	sb := strings.Builder{}
-	sb.WriteString("filesystem: inconsistent database:\n")
-	inconsistent := false
-	for alias, node := range fsdb.certNodes {
-		if node.CertificateContext == nil {
-			sb.WriteString(fmt.Sprintf("  missing certificate context: %v\n", alias))
-			inconsistent = true
-			continue
+func (f fsEntity) artifactFileName() string {
+	return f.configFile[:strings.LastIndex(f.configFile, ".")] + ".pem"
+}
+
+func (fsdb *FsDb) GetEntity(alias string) *db.DbEntity {
+	e, ok := fsdb.entities[alias]
+	if !ok {
+		return nil
+	}
+	return e.DbEntity
+}
+
+func generateConfigFileNameFor(entity db.DbEntity) string {
+	return entity.Config.Alias + ".yaml"
+}
+
+// TODO: Import feels so scattered now
+// TODO: what if the entity is root? We need to add it to the root list?
+func (fsdb *FsDb) PutEntity(entity db.DbEntity) error {
+	if len(entity.Config.Alias) == 0 {
+		return fmt.Errorf("cannot store entity without alias")
+	}
+
+	fsentity, ok := fsdb.entities[entity.Config.Alias]
+	if !ok {
+		fsentity = &fsEntity{
+			DbEntity:   &entity,
+			configFile: generateConfigFileNameFor(entity),
 		}
-		if node.CertificateContext.Issuer == nil {
-			sb.WriteString(fmt.Sprintf("  missing issuer context: %v\n", alias))
-			inconsistent = true
-			continue
+		fsdb.entities[entity.Config.Alias] = fsentity
+	} else {
+		fsentity.DbEntity = &entity
+	}
+
+	var err error
+	if fsentity.lastArtifactWrite.Before(fsentity.DbEntity.LastBuild) {
+		err = fsdb.exportPemFile(*fsentity)
+	}
+
+	return err
+}
+
+func (fsdb *FsDb) NumEntities() int {
+	return len(fsdb.entities)
+}
+
+func (fsdb *FsDb) RootEntities() []string {
+	return fsdb.rootAliases
+}
+
+func (fsdb *FsDb) GetSubscribers(alias string) []string {
+	return fsdb.subscribersOf[alias]
+}
+
+func (fsdb *FsDb) GetProfile(name string) *config.CertificateProfile {
+	return fsdb.profiles[name]
+}
+
+func (fsdb *FsDb) AddProfile(profile config.CertificateProfile) error {
+	fsdb.profiles[profile.Name] = &profile
+	return nil
+}
+
+func (fsdb *FsDb) exportPemFile(entity fsEntity) error {
+	var err error
+	bb := bytes.Buffer{}
+	if entity.BuildArtifact.Certificate != nil {
+		err = entity.BuildArtifact.Certificate.WritePem(&bb)
+		if err != nil {
+			return err
+		}
+	}
+	if entity.BuildArtifact.PrivateKey != nil {
+		err = cert.WritePrivateKeyToPem(entity.BuildArtifact.PrivateKey, &bb)
+		if err != nil {
+			return err
 		}
 	}
 
-	if inconsistent {
-		return errors.New(sb.String())
+	if bb.Len() > 0 {
+		err = fsdb.filesystem.WriteFile(
+			entity.artifactFileName(),
+			bb.Bytes(),
+		)
+		if err != nil {
+			return err
+		}
 	}
 
-	logging.Debug("db check finished: no missing certificates in database")
+	entity.lastArtifactWrite = time.Now()
 
 	return nil
 }
 
-func (fsdb *FsDb) needsUpdate(strat db.UpdateStrategy, n *certNode, importedCert *cert.Certificate, importedKey crypto.PrivateKey) (bool, error) {
-	if strat&db.UpdateAll > 0 {
-		logging.Debugf("%v needs update. reson: GenerateAlways is set", n.CertificateContent.Alias)
-		return true, nil
-	}
-
-	issuerNode, exists := fsdb.certNodes[n.CertificateContent.Issuer]
-	if exists && !issuerNode.imported {
-		//issuer was generated, so we need to update as well.
-		logging.Debugf("%v needs update. reson: Issuer has changed", n.CertificateContent.Alias)
-		return true, nil
-	}
-
-	statFs, ok := fsdb.filesystem.Fs().(fs.StatFS)
+func (fsdb *FsDb) importPemFile(alias string) db.BuildArtifact {
+	logging.Debugf("attempting to import cert/key for '%v' that we can reuse", alias)
+	out := db.BuildArtifact{}
+	e, ok := fsdb.entities[alias]
 	if !ok {
-		return false, errors.New("filesystem: file system does not support stat methods")
+		return db.BuildArtifact{}
 	}
-
-	certfilename := n.configFileName[:strings.LastIndex(n.configFileName, ".")] + ".pem"
-	if strat&db.UpdateNewerConfig > 0 {
-		infoPem, err := statFs.Stat(certfilename)
-		if err != nil {
-			return false, err
-		}
-
-		infoCfg, err := statFs.Stat(n.configFileName)
-		if err != nil {
-			return false, err
-		}
-
-		if infoCfg.ModTime().After(infoPem.ModTime()) {
-			logging.Debugf("%v needs update. reson: GenerateNewerConfig is set and config modTime [%v] > cert modTime [%v]",
-				n.CertificateContent.Alias, infoCfg.ModTime(), infoPem.ModTime())
-			return true, nil
-		}
-	}
-
-	if importedCert != nil && strat&db.UpdateExpired > 0 {
-		if n.CertificateContent.ValidUntil.Before(time.Now()) {
-			logging.Infof("%v has an explicitly set expiration date in the past -> regeneration would be pointless", n.Alias)
-		} else {
-			if importedCert.TBSCertificate.Validity.NotAfter.Before(time.Now()) {
-				logging.Debugf("%v needs update. reason: expired (validNotAfter='%v')",
-					n.CertificateContent.Alias, importedCert.TBSCertificate.Validity.NotAfter)
-				return true, nil
-			}
-		}
-	}
-
-	if (importedKey == nil || importedCert == nil) && strat&db.UpdateMissing > 0 {
-		logging.Debugf("%v needs update. reson: GenerateMissing is set and private key or certificate is missing", n.CertificateContent.Alias)
-		return true, nil
-	}
-
-	return false, nil
-}
-
-func (fsdb *FsDb) importPemFile(certFile string) (*cert.Certificate, crypto.PrivateKey) {
-	logging.Debugf("attempting to import cert/key in '%v' that we can reuse", certFile)
-
-	var cer *cert.Certificate
-	var key crypto.PrivateKey
-
-	certfi, err := fsdb.filesystem.Fs().Open(certFile)
+	certFile := e.artifactFileName()
+	certfi, err := fsdb.filesystem.FS().Open(certFile)
 	if err != nil {
 		logging.Debugf("import of %v failed: %v", certFile, err)
-		return cer, key
+		return out
 	}
 	defer certfi.Close()
 
 	certfiContent, err := io.ReadAll(certfi)
 	if err != nil {
-		return cer, key
+		return out
 	}
 
-	cer, err = cert.ImportCertPem(certfiContent)
+	out.Certificate, err = cert.ImportCertPem(certfiContent)
 	if err != nil {
 		logging.Infof("certificate import failed: %v", err)
 	}
 
-	key, err = cert.ImportKeyPem(certfiContent)
+	//get modtime for certFile
+	fi, err := fsdb.filesystem.Stat(certFile)
+	if err != nil && !os.IsNotExist(err) {
+		logging.Infof("could not get modtime for %v: %v", certFile, err)
+	} else {
+		e.lastArtifactWrite = fi.ModTime()
+	}
+
+	out.PrivateKey, err = cert.ImportKeyPem(certfiContent)
 	if err != nil {
 		logging.Infof("private key import failed: %v", err)
 	}
 
-	return cer, key
+	return out
 }
 
-func validateAndMerge(fsdb *FsDb, node *certNode) error {
-	logging.Debugf("validating and merging %v with profile %v", node.configFileName, node.CertificateContent.Profile)
-	if len(node.CertificateContent.Profile) > 0 {
-		profile, ok := fsdb.profiles[node.CertificateContent.Profile]
-		if !ok {
-			return fmt.Errorf("filesystem: '%s' references unknown profile '%s'",
-				node.configFileName, node.CertificateContent.Profile)
-		}
+func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, configPath string) error {
+	logging.Debugf("certificate recognized")
 
-		logging.Debugf("profile %v was found", node.CertificateContent.Profile)
-
-		if !config.Validate(profile, node.CertificateContent) {
-			return fmt.Errorf("filesystem: '%s' does not validate against profile '%s'",
-				node.configFileName, node.CertificateContent.Profile)
-		}
-
-		logging.Debug("validation was successful")
-
-		newContent, err := config.Merge(profile, node.CertificateContent)
-		if err != nil {
-			return fmt.Errorf("filesystem: can't merge '%s' with profile'%s' due to '%v'",
-				node.configFileName, node.CertificateContent.Profile,
-				err)
-		}
-
-		logging.Debug("profile data merge was successful")
-
-		node.CertificateContent = *newContent
+	//default alias is the filename
+	if len(certContent.Alias) == 0 {
+		newAlias := configPath[strings.LastIndex(configPath, "/")+1 : strings.LastIndex(configPath, ".")]
+		certContent.Alias = newAlias
+		logging.Debugf("alias is not set. setting it to '%v'", newAlias)
 	}
 
-	return nil
-}
+	e, alreadyExists := fsdb.entities[certContent.Alias]
+	if alreadyExists && e.configFile != configPath {
+		logging.Errorf("alias %s already exists in database", certContent.Alias)
+		logging.Errorf("either rename one of these config files to something unique or set a unique alias in the config")
 
-func (fsdb *FsDb) updateChains(aliases []string, strat db.UpdateStrategy) (int, error) {
-	todo := make([]string, 0, 1024)
-	todo = append(todo, aliases...)
-	certsGenerated := 0
+		return fmt.Errorf("alias exists multiple times: %s. ", certContent.Alias)
+	}
 
-	i := 0
-	for i < len(todo) {
-		alias := todo[i]
-		i++
-		logging.Debugf("currently working on %v (item %v/%v of our to-do list)", alias, i, len(todo))
-
-		//add subscribers to todo list
-		subs, exists := fsdb.subscribersOf[alias]
-		if exists {
-			logging.Debugf("%v signs %v more certificates. adding them to our to-do list", alias, len(subs))
-			todo = append(todo, subs...)
+	if !alreadyExists {
+		e = &fsEntity{
+			configFile: configPath,
+			DbEntity: &db.DbEntity{
+				Config: certContent,
+			},
 		}
+	}
+	fsdb.entities[certContent.Alias] = e
 
-		//check if we need to upgrade
-		node := fsdb.certNodes[alias]
-		baseName := node.configFileName[:strings.LastIndex(node.configFileName, ".")]
-
-		logging.Debugf("%v does not need an update", alias)
-		cer, key := fsdb.importPemFile(baseName + ".pem")
-
-		update, err := fsdb.needsUpdate(strat, node, cer, key)
+	//get modtime for config file
+	statfs, ok := fsdb.filesystem.FS().(fs.StatFS)
+	if ok {
+		stat, err := statfs.Stat(configPath)
 		if err != nil {
-			return certsGenerated, err
-		}
-
-		//validate and merge profile if applicable
-		if err = validateAndMerge(fsdb, node); err != nil {
-			return certsGenerated, err
-		}
-
-		var ctx *cert.CertificateContext
-		var issuerCtx cert.IssuerContext
-		if update {
-			logging.Debugf("generating new certificate body for %v", alias)
-			ctx, err = generator.BuildCertBody(node.CertificateContent, key)
-			if err != nil {
-				return certsGenerated, err
-			}
-
-			if len(node.CertificateContent.Issuer) > 0 {
-				logging.Debugf("issuer property for %v is set", alias)
-				issuer := fsdb.certNodes[node.CertificateContent.Issuer]
-				issuerCtx = cert.AsIssuer(*issuer.CertificateContext)
-			} else {
-				issuerCtx = cert.AsIssuer(*ctx)
-			}
+			logging.Warningf("could not get modtime for %v: %v", configPath, err)
 		} else {
-			if key != nil && cer != nil {
-				ctx = &cert.CertificateContext{
-					TbsCertificate: &cer.TBSCertificate,
-					PrivateKey:     key,
-				}
-				issuerCtx = cert.AsIssuer(*ctx)
-				node.imported = true
-				logging.Debugf("successfully imported context for %v", alias)
-			} else {
-				logging.Debugf("no valid cert and key for %v and not allowed to update. skipping", alias)
-			}
+			e.DbEntity.LastConfigUpdate = stat.ModTime()
 		}
+	} else {
+		logging.Warningf("filesystem does not support statfs. cannot get modtime for %v. updates based on modtimes will be unreliable", configPath)
+	}
 
-		ctx.Issuer = &issuerCtx
-		node.CertificateContext = ctx
+	//attempt to import certificate and key
+	e.DbEntity.BuildArtifact = fsdb.importPemFile(certContent.Alias)
 
-		if !update {
-			continue
-		}
-
-		//sign
-		logging.Debugf("signing certificate for %v", alias)
-		crt, err := node.CertificateContext.Sign(node.CertificateContent.SignatureAlgorithm)
-		if err != nil {
-			return certsGenerated, err
-		}
-
-		//write cert and key files
-		bb := bytes.Buffer{}
-		err = crt.WritePem(&bb)
-		if err != nil {
-			return certsGenerated, err
-		}
-
-		err = cert.WritePrivateKeyToPem(ctx.PrivateKey, &bb)
-		if err != nil {
-			return certsGenerated, err
-		}
-
-		fname := node.configFileName[:strings.LastIndex(node.configFileName, ".")] + ".pem"
-		logging.Debugf("writing %v", fname)
-		err = fsdb.filesystem.WriteFile(fname, bb.Bytes())
-		if err != nil {
-			return certsGenerated, err
-		}
-
-		if len(node.CertificateContent.Issuer) == 0 {
-			logging.Infof("%v[%v]: %v", node.CertificateContent.Alias, fname, node.CertificateContext.Subject.String())
+	//populate root and subscriber lists
+	if !alreadyExists {
+		if len(certContent.Issuer) == 0 {
+			logging.Debugf("we have a new root certificate. adding it to root list")
+			fsdb.rootAliases = append(fsdb.rootAliases, certContent.Alias)
 		} else {
-			logging.Infof("%v->%v[%v]: %v", node.CertificateContent.Issuer, node.CertificateContent.Alias, fname, node.CertificateContext.Subject.String())
+			//has issuer? -> remember relation
+			logging.Debugf("we have a non-root certificate [issuer alias=%v]", certContent.Issuer)
+			_, exists := fsdb.subscribersOf[certContent.Issuer]
+			if !exists {
+				logging.Debugf("issuer '%v' is unknown (right now), so we initialize the issuer list", certContent.Issuer)
+				fsdb.subscribersOf[certContent.Issuer] = make([]string, 0, 64)
+			}
+
+			logging.Debugf("'%v' ==is=signed=by==> '%v'", certContent.Alias, certContent.Issuer)
+			fsdb.subscribersOf[certContent.Issuer] =
+				append(fsdb.subscribersOf[certContent.Issuer], certContent.Alias)
 		}
-
-		certsGenerated++
 	}
-
-	logging.Infof("generation finished. %d certs generated", certsGenerated)
-	return certsGenerated, nil
-}
-
-// Update all certificates in this database according to the provided strategy.
-// This involves generating certificates and keys if the strategy demands it
-// and writing them out to the filesystem.
-func (fsdb *FsDb) Update(strat db.UpdateStrategy) error {
-	fsdb.rootAliases = fsdb.rootAliases[:]
-
-	certsGenerated := 0
-
-	n, err := fsdb.updateChains(fsdb.rootAliases, strat)
-	if err != nil {
-		return err
-	}
-
-	certsGenerated += n
-
-	err = fsdb.checkConsistency()
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
 // Open will walk through the filesystem and collect all config files, building
 // the certificate hierarchy. It does not just open a file descriptor, as the name might
 // suggest.
-func (fsdb *FsDb) Open() error {
+func ImportFiles(backend db.Database, fsys fs.FS) error {
 	logging.Debug("scanning folder for config files")
-	err := fs.WalkDir(fsdb.filesystem.Fs(), ".", func(path string, d fs.DirEntry, err error) error {
+
+	fsdb, ok := backend.(*FsDb)
+	if !ok {
+		//TODO: create fsdb, if not compatible
+		return errors.New("invalid database type")
+	}
+
+	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		logging.Debugf("considering dir entry '%v'", path)
 		if err != nil {
 			return err
@@ -445,7 +380,7 @@ func (fsdb *FsDb) Open() error {
 			return nil
 		}
 
-		fi, err := fsdb.filesystem.Fs().Open(path)
+		fi, err := fsys.Open(path)
 		if err != nil {
 			return err
 		}
@@ -466,44 +401,9 @@ func (fsdb *FsDb) Open() error {
 		certContent, ok := cfg.(*config.CertificateContent)
 		if ok {
 			logging.Debugf("certificate recognized")
-
-			//default alias is the filename
-			if len(certContent.Alias) == 0 {
-				newAlias := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
-				certContent.Alias = newAlias
-				logging.Debugf("alias is not set. setting it to '%v'", newAlias)
-			}
-
-			_, exists := fsdb.certNodes[certContent.Alias]
-			if exists && fsdb.certNodes[certContent.Alias].configFileName != path {
-				logging.Errorf("alias %s already exists in database", certContent.Alias)
-				logging.Errorf("either rename one of these config files to something unique or set a unique alias in the config")
-
-				return fmt.Errorf("alias exists multiple times: %s. ", certContent.Alias)
-			}
-
-			fsdb.certNodes[certContent.Alias] = &certNode{
-				configFileName:     path,
-				CertificateContent: *certContent,
-				CertificateContext: nil,
-			}
-
-			if len(certContent.Issuer) == 0 {
-				//is root? -> note
-				logging.Debugf("we have a root certificate. adding it to root list")
-				fsdb.rootAliases = append(fsdb.rootAliases, certContent.Alias)
-			} else {
-				//has issuer? -> remember relation
-				logging.Debugf("we have a non-root certificate [issuer alias=%v]", certContent.Issuer)
-				_, exists := fsdb.subscribersOf[certContent.Issuer]
-				if !exists {
-					logging.Debugf("issuer '%v' is unknown (right now), so we initialize the issuer list", certContent.Issuer)
-					fsdb.subscribersOf[certContent.Issuer] = make([]string, 0, 64)
-				}
-
-				logging.Debugf("'%v' ==is=signed=by==> '%v'", certContent.Alias, certContent.Issuer)
-				fsdb.subscribersOf[certContent.Issuer] =
-					append(fsdb.subscribersOf[certContent.Issuer], certContent.Alias)
+			err = fsdb.importCertConfig(*certContent, path)
+			if err != nil {
+				return err
 			}
 			return nil
 		}
@@ -512,30 +412,29 @@ func (fsdb *FsDb) Open() error {
 		profileContent, ok := cfg.(*config.CertificateProfile)
 		if ok {
 			logging.Debugf("profile recognized")
-			fsdb.profiles[profileContent.Name] = *profileContent
+			fsdb.profiles[profileContent.Name] = profileContent
 			return nil
 		}
 
 		panic(fmt.Errorf("filesystem: file '%s' can neither be casted as a profile nor as a certificate config, even though parsing was successful", path))
 	})
 
-	logging.Infof("found %v cert configs (containing %v root configs) and %v cert profiles", len(fsdb.certNodes), len(fsdb.profiles), len(fsdb.rootAliases))
+	logging.Infof("found %v cert configs (containing %v root configs) and %v cert profiles", len(fsdb.entities), len(fsdb.profiles), len(fsdb.rootAliases))
 
 	return err
 }
 
-// Get all certificates and keys in the filesystem database.
-func (fsdb *FsDb) GetAll() ([]cert.CertificateContext, error) {
-	out := make([]cert.CertificateContext, len(fsdb.certNodes))
-	i := 0
-	for _, v := range fsdb.certNodes {
-		if v.CertificateContext != nil {
-			out[i] = *v.CertificateContext
-		}
-		i++
+func (fsdb *FsDb) Open() error {
+	err := ImportFiles(fsdb, fsdb.filesystem.FS())
+	if err != nil {
+		return err
 	}
 
-	return out[:], nil
+	if !db.IsConsistent(fsdb) {
+		return errors.New("database is not consistent")
+	}
+
+	return nil
 }
 
 func (fsdb *FsDb) Close() error {

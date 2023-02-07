@@ -95,7 +95,7 @@ func init() {
 				os.Exit(0)
 			}
 
-			err = fsdb.Update(strat)
+			_, err = db.Update(fsdb, strat)
 			if err != nil {
 				fmt.Printf("error during database update: %s", err.Error())
 				os.Exit(1)

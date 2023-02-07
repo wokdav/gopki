@@ -111,24 +111,20 @@ func getTestFs(m map[string]string) Filesystem {
 	return NewMapFs(out)
 }
 
-func quickUpdate(testdb db.CertificateDatabase, strat db.UpdateStrategy) ([]cert.CertificateContext, error) {
+func quickUpdate(testdb db.Database, strat db.UpdateStrategy) (int, error) {
+	var certsGenerated int
 	err := testdb.Open()
 	if err != nil {
-		return nil, err
+		return certsGenerated, err
 	}
 	defer testdb.Close()
 
-	err = testdb.Update(strat)
+	certsGenerated, err = db.Update(testdb, strat)
 	if err != nil {
-		return nil, err
+		return certsGenerated, err
 	}
 
-	ctx, err := testdb.GetAll()
-	if err != nil {
-		return nil, err
-	}
-
-	return ctx, nil
+	return certsGenerated, nil
 }
 
 func TestSmoke(t *testing.T) {
@@ -141,13 +137,13 @@ func TestSmoke(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	ctx, err := quickUpdate(testdb, db.UpdateMissing)
+	n, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	if len(ctx) != 3 {
-		t.Fatalf("expected 3 certificates, got %d", len(ctx))
+	if n != 3 {
+		t.Fatalf("expected 3 certificates, got %d", n)
 	}
 }
 
@@ -162,8 +158,9 @@ func TestNoRoot(t *testing.T) {
 	testdb := NewFilesystemDatabase(fs)
 	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err == nil {
-		t.Fatal("certification paths with no roots should fail")
+		t.Fatal("expected an inconsistent database")
 	}
+
 }
 
 func TestPartial(t *testing.T) {
@@ -182,7 +179,7 @@ func TestPartial(t *testing.T) {
 	}
 }
 
-func TestCeckIssuer(t *testing.T) {
+func TestCheckIssuer(t *testing.T) {
 	fsdb := getTestFs(
 		map[string]string{
 			"root.yaml": "version: 1\nsubject: CN=Test Root",
@@ -195,7 +192,7 @@ func TestCeckIssuer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	b, err := fs.ReadFile(fsdb.Fs(), "sub.pem")
+	b, err := fs.ReadFile(fsdb.FS(), "sub.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -223,7 +220,7 @@ func TestCeckIssuer(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	b, err = fs.ReadFile(fsdb.Fs(), "root.pem")
+	b, err = fs.ReadFile(fsdb.FS(), "root.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -270,17 +267,17 @@ func TestSingle(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	ctx, err := quickUpdate(testdb, db.UpdateMissing)
+	n, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	if len(ctx) != 1 {
-		t.Fatalf("expected 1 certificate in return, but got %d", len(ctx))
+	if n != 1 {
+		t.Fatalf("expected 1 certificate in return, but got %d", n)
 	}
 
 	//check self-signed signature
-	b, err := fs.ReadFile(fsdb.Fs(), "root.pem")
+	b, err := fs.ReadFile(fsdb.FS(), "root.pem")
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -311,21 +308,21 @@ func TestDirectories(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fsdb)
-	ctx, err := quickUpdate(testdb, db.UpdateMissing)
+	n, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	if len(ctx) != 3 {
-		t.Fatalf("expected 3 certificates, got %d", len(ctx))
+	if n != 3 {
+		t.Fatalf("expected 3 certificates, got %d", n)
 	}
 
 	//check that certificates are stored in the expected directories
-	_, err = fs.ReadFile(fsdb.Fs(), "a/b/c/root.pem")
+	_, err = fs.ReadFile(fsdb.FS(), "a/b/c/root.pem")
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	_, err = fs.ReadFile(fsdb.Fs(), "x/y/sub.pem")
+	_, err = fs.ReadFile(fsdb.FS(), "x/y/sub.pem")
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -362,7 +359,7 @@ func TestReuseKey(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	f, err := fs.ReadFile(fsdb.Fs(), "root.pem")
+	f, err := fs.ReadFile(fsdb.FS(), "root.pem")
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -393,17 +390,18 @@ func TestIgnoreBad(t *testing.T) {
 		map[string]string{
 			"root.yaml": "version: 1\nsubject: CN=Test Root",
 			"foo.txt":   `¯\_(ツ)_/¯`,
+			"bar.yaml":  `¯\_(ツ)_/¯`,
 		},
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	ctx, err := quickUpdate(testdb, db.UpdateMissing)
+	n, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	if len(ctx) != 1 {
-		t.Fatalf("expected 1 certificate in return, but got %d", len(ctx))
+	if n != 1 {
+		t.Fatalf("expected 1 certificate in return, but got %d", n)
 	}
 }
 
@@ -413,13 +411,13 @@ func TestEmptyDir(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	ctx, err := quickUpdate(testdb, db.UpdateMissing)
+	n, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	if len(ctx) != 0 {
-		t.Fatalf("expected 0 certificates to be returned, but got %v", len(ctx))
+	if n != 0 {
+		t.Fatalf("expected 0 certificates to be returned, but got %v", n)
 	}
 }
 
@@ -437,12 +435,12 @@ func TestWriteCertificates(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	_, err = fs.ReadFile(fsdb.Fs(), "root.pem")
+	_, err = fs.ReadFile(fsdb.FS(), "root.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	_, err = fs.ReadFile(fsdb.Fs(), "sub.pem")
+	_, err = fs.ReadFile(fsdb.FS(), "sub.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -458,7 +456,7 @@ func TestGenerateMissing(t *testing.T) {
 		},
 	)
 
-	bBefore, err := fs.ReadFile(fsdb.Fs(), "a/root1.pem")
+	bBefore, err := fs.ReadFile(fsdb.FS(), "a/root1.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -470,7 +468,7 @@ func TestGenerateMissing(t *testing.T) {
 	}
 
 	//check that root1.pem is unchanged
-	bAfter, err := fs.ReadFile(fsdb.Fs(), "a/root1.pem")
+	bAfter, err := fs.ReadFile(fsdb.FS(), "a/root1.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -480,7 +478,7 @@ func TestGenerateMissing(t *testing.T) {
 	}
 
 	//check that root2.pem is generated
-	_, err = fs.ReadFile(fsdb.Fs(), "root2.pem")
+	_, err = fs.ReadFile(fsdb.FS(), "root2.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -502,7 +500,7 @@ func TestGenerateWithImport(t *testing.T) {
 	}
 
 	//check that sub is generated properly
-	b, err := fs.ReadFile(fsdb.Fs(), "sub.pem")
+	b, err := fs.ReadFile(fsdb.FS(), "sub.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -601,7 +599,7 @@ func TestBugWrongKeyAlg(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	b, err := fs.ReadFile(fsdb.Fs(), "root.pem")
+	b, err := fs.ReadFile(fsdb.FS(), "root.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -637,7 +635,7 @@ func TestBugWrongKeyAlgRsa(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	b, err := fs.ReadFile(fsdb.Fs(), "root.pem")
+	b, err := fs.ReadFile(fsdb.FS(), "root.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -672,7 +670,7 @@ func TestBugWrongDate(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	b, err := fs.ReadFile(fsdb.Fs(), "root.pem")
+	b, err := fs.ReadFile(fsdb.FS(), "root.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -713,7 +711,7 @@ func TestBugWrongAuthKeyId(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	b, err := fs.ReadFile(fsdb.Fs(), "sub.pem")
+	b, err := fs.ReadFile(fsdb.FS(), "sub.pem")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -751,7 +749,7 @@ func TestProfileSmoke(t *testing.T) {
 	)
 
 	testdb := NewFilesystemDatabase(fs)
-	ctx, err := quickUpdate(testdb, db.UpdateMissing)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -760,11 +758,17 @@ func TestProfileSmoke(t *testing.T) {
 	if !ok {
 		panic("oid not found")
 	}
-
-	profileExtension, err := ctx[0].Extensions[0].Compile(&ctx[0])
-	if err != nil {
-		t.Fatal(err.Error())
+	e := testdb.GetEntity("root")
+	if e == nil {
+		t.Fatalf("entity not found")
 	}
+
+	if len(e.BuildArtifact.Certificate.TBSCertificate.Extensions) != 1 {
+		t.Fatalf("expected 1 extension, but got %v", len(e.BuildArtifact.Certificate.TBSCertificate.Extensions))
+	}
+
+	profileExtension := e.BuildArtifact.Certificate.TBSCertificate.Extensions[0]
+
 	if !profileExtension.Id.Equal(oid) {
 		t.Fatalf("expected oid %v, but got %v", oid.String(), profileExtension.Id.String())
 	}
@@ -817,7 +821,7 @@ func TestWriteToFileMapFs(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	b, err := fs.ReadFile(fsdb.Fs(), filename)
+	b, err := fs.ReadFile(fsdb.FS(), filename)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -846,7 +850,7 @@ func TestWriteToFileNativeFs(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	b, err := fs.ReadFile(filesys.Fs(), filename)
+	b, err := fs.ReadFile(filesys.FS(), filename)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -859,43 +863,42 @@ func TestWriteToFileNativeFs(t *testing.T) {
 
 func TestNilMapfs(t *testing.T) {
 	mfs := NewMapFs(nil)
-	_, err := mfs.Fs().Open(".")
+	_, err := mfs.FS().Open(".")
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 }
 
 func TestGenerateNewer(t *testing.T) {
-	today := time.Now()
-	yesterday := today.AddDate(0, 0, -1)
-	tomorrow := today.AddDate(0, 0, 1)
+	now := time.Now()
+	hourAgo := now.Add(-time.Hour)
 
 	testpem := testrootcert + testrootkey
 
 	var mpfs fstest.MapFS = map[string]*fstest.MapFile{
 		".": {
 			Mode:    0777 | fs.ModeDir,
-			ModTime: today,
+			ModTime: now,
 		},
 		"root.yaml": {
 			Data:    []byte("version: 1\nsubject: CN=Test Root"),
 			Mode:    0644,
-			ModTime: today,
+			ModTime: now,
 		},
 		"root.pem": {
 			Data:    []byte(testpem),
 			Mode:    0644,
-			ModTime: yesterday,
+			ModTime: hourAgo,
 		},
 		"sub.yaml": {
 			Data:    []byte("version: 1\nsubject: CN=Test Sub\nissuer: root"),
 			Mode:    0644,
-			ModTime: tomorrow,
+			ModTime: hourAgo,
 		},
 		"sub.pem": {
 			Data:    []byte(testpem),
 			Mode:    0644,
-			ModTime: tomorrow,
+			ModTime: hourAgo,
 		},
 	}
 
@@ -974,7 +977,7 @@ func TestGenerateExpired(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	newPem, _ := fs.ReadFile(fsdb.Fs(), "root.pem")
+	newPem, _ := fs.ReadFile(fsdb.FS(), "root.pem")
 	if strings.Contains(string(newPem), expiredCert) {
 		t.Fatal("expected certificate to change")
 	}
@@ -995,7 +998,7 @@ func TestGenerateExpiredExplicit(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	newPem, _ := fs.ReadFile(fsdb.Fs(), "root.pem")
+	newPem, _ := fs.ReadFile(fsdb.FS(), "root.pem")
 	if !strings.Contains(string(newPem), expiredCert) {
 		t.Fatal("expected certificate not to change")
 	}
@@ -1016,7 +1019,7 @@ func TestGenerateExpiredExplicitFuture(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	newPem, _ := fs.ReadFile(fsdb.Fs(), "root.pem")
+	newPem, _ := fs.ReadFile(fsdb.FS(), "root.pem")
 	if strings.Contains(string(newPem), expiredCert) {
 		t.Fatal("expected certificate to change")
 	}

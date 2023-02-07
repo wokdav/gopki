@@ -389,9 +389,9 @@ func TestAsIssuer(t *testing.T) {
 	}
 
 	issuerCtx := AsIssuer(*ctx)
-	if issuerCtx.issuerDn.String() != ctx.Subject.String() {
+	if issuerCtx.IssuerDn.String() != ctx.Subject.String() {
 		t.Fatalf("differnt issuer dn - expected '%s', got '%x'",
-			ctx.Subject.String(), issuerCtx.issuerDn.String())
+			ctx.Subject.String(), issuerCtx.IssuerDn.String())
 	}
 
 	subKey := ctx.PrivateKey.(*ecdsa.PrivateKey)
@@ -400,7 +400,7 @@ func TestAsIssuer(t *testing.T) {
 		t.Fatal("private keys are different")
 	}
 
-	if !bytes.Equal(issuerCtx.publicKeyRaw, ctx.PublicKey.PublicKey.Bytes) {
+	if !bytes.Equal(issuerCtx.PublicKeyRaw, ctx.PublicKey.PublicKey.Bytes) {
 		t.Fatal("raw public keys are different")
 	}
 }
