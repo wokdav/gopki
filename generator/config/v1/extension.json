@@ -71,20 +71,7 @@
                 "content": {
                     "type": "array",
                     "items": {
-                        "type": "object",
-                        "properties": {
-                            "type": {
-                                "enum": [
-                                    "ip",
-                                    "dns",
-                                    "mail"
-                                ]
-                            },
-                            "name": {
-                                "type": "string"
-                            }
-                        },
-                        "additionalProperties": false
+                        "$ref": "general_name.json"
                     }
                 }
             },
@@ -259,25 +246,90 @@
                     "$ref": "extension_rawcontent.json"
                 },
                 "content": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "professionOid": {
-                                "$ref": "oid.json"
-                            },
-                            "professionItem": {
-                                "type": "string"
-                            },
-                            "registrationNumber": {
-                                "type": "string"
-                            }
+                    "type": "object",
+                    "properties": {
+                        "admissionAuthority": {
+                            "$ref": "general_name.json"
                         },
-                        "additionalProperties": false,
-                        "required": [
-                            "professionItem"
-                        ]
-                    }
+                        "admissions": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "admissionAuthority": {
+                                        "$ref": "general_name.json"
+                                    },
+                                    "namingAuthority": {
+                                        "$comment": "TODO: Use as $ref",
+                                        "type": "object",
+                                        "properties": {
+                                            "oid": {
+                                                "$ref": "oid.json"
+                                            },
+                                            "url": {
+                                                "type": "string"
+                                            },
+                                            "text": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "professionInfos": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "namingAuthority": {
+                                                    "$comment": "TODO: Use as $ref",
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "oid": {
+                                                            "$ref": "oid.json"
+                                                        },
+                                                        "url": {
+                                                            "type": "string"
+                                                        },
+                                                        "text": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                },
+                                                "professionItems": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "professionOids": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "oid.json"
+                                                    }
+                                                },
+                                                "registrationNumber": {
+                                                    "type": "string"
+                                                },
+                                                "addProfessionInfo": {
+                                                    "type": "string",
+                                                    "pattern": "(!binary:[A-Za-z0-9+/=]+)|!null|!empty"
+                                                }
+                                            },
+                                            "required": [
+                                                "professionItems"
+                                            ]
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "professionInfos"
+                                ],
+                                "additionalProperties": false
+                            }
+                        }
+                    },
+                    "additionalProperties": false
                 }
             },
             "additionalProperties": false

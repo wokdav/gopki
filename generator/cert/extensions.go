@@ -7,6 +7,7 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
+	"reflect"
 )
 
 type ExtensionOid int
@@ -23,6 +24,7 @@ const (
 	OidExtensionCRLDistributionPoints
 	OidExtensionAuthorityInfoAccess
 	OidExtensionCRLNumber
+	OidExtensionAdmission
 	oidExtensionLen
 )
 
@@ -38,6 +40,7 @@ var (
 	oidExtensionCRLDistributionPoints = []int{2, 5, 29, 31}
 	oidExtensionAuthorityInfoAccess   = []int{1, 3, 6, 1, 5, 5, 7, 1, 1}
 	oidExtensionCRLNumber             = []int{2, 5, 29, 20}
+	oidExtensionAdmission             = []int{1, 3, 36, 8, 3, 3}
 )
 
 var oids []asn1.ObjectIdentifier = []asn1.ObjectIdentifier{
@@ -52,6 +55,7 @@ var oids []asn1.ObjectIdentifier = []asn1.ObjectIdentifier{
 	oidExtensionCRLDistributionPoints,
 	oidExtensionAuthorityInfoAccess,
 	oidExtensionCRLNumber,
+	oidExtensionAdmission,
 }
 
 // Returns the appropriate OID object. If the provided
@@ -62,6 +66,37 @@ func GetOid(i ExtensionOid) (asn1.ObjectIdentifier, bool) {
 	}
 
 	return oids[i], true
+}
+
+func partialMarshallStruct(in any, offset uint, len uint) ([]byte, error) {
+	ty := reflect.TypeOf(in)
+	if ty.Kind() != reflect.Struct {
+		return nil, errors.New("extensions: input must be struct")
+	}
+
+	var err error
+	bb := bytes.Buffer{}
+	var tmp []byte
+
+	val := reflect.ValueOf(in)
+	off := int(offset)
+	for i := 0; i < int(len); i++ {
+		currentField := reflect.TypeOf(in).Field(off + i)
+		_, ok := currentField.Tag.Lookup("asn1")
+		field := val.Field(off + i).Interface()
+		if ok {
+			tmp, err = asn1.MarshalWithParams(field, currentField.Tag.Get("asn1"))
+		} else {
+			tmp, err = asn1.Marshal(field)
+		}
+
+		if err != nil {
+			return nil, err
+		}
+		bb.Write(tmp)
+	}
+
+	return bb.Bytes(), nil
 }
 
 // Create a Subject Key Identifier Extension according to RFC5280.
@@ -400,4 +435,228 @@ func NewAuthorityKeyIdentifierHash(critical bool, ctx *CertificateContext) (*pki
 		Critical: critical,
 		Value:    keyIdMarshalled,
 	}, nil
+}
+
+type Admission struct {
+	AdmissionAuthority GeneralName `asn1:"optional"`
+	Contents           []Admissions
+}
+
+type Admissions struct {
+	AdmissionAuthority GeneralName `asn1:"optional,explicit"`
+	NamingAuthority    `asn1:"tag:1,optional,explicit"`
+	ProfessionInfos    []ProfessionInfo `omitempty,asn1:"optional"`
+}
+
+type NamingAuthority struct {
+	Oid  asn1.ObjectIdentifier `asn1:"optional"`
+	URL  string                `asn1:"ia5,optional"`
+	Text string                `asn1:"utf8,optional"`
+}
+
+type ProfessionInfo struct {
+	NamingAuthority    `asn1:"tag:0,explicit,optional"`
+	ProfessionItems    []string                `asn1:"omitempty,optional"`
+	ProfessionOids     []asn1.ObjectIdentifier `asn1:"omitempty,optional"`
+	RegistrationNumber string                  `asn1:"printable,optional"`
+	AddProfessionInfo  []byte                  `asn1:"omitempty,optional"`
+}
+
+func makeExplicit(b []byte) []byte {
+	//safe operation, so we ignore the error
+	wrap, _ := asn1.Marshal(asn1.RawValue{
+		Class:      asn1.ClassContextSpecific,
+		IsCompound: true,
+		Tag:        0,
+		Bytes:      b,
+	})
+
+	return wrap
+}
+
+func (ad Admission) marshal() ([]byte, error) {
+	var err error
+	bb := bytes.Buffer{}
+	var tmp []byte
+
+	if ad.AdmissionAuthority != nil {
+		tmp, err = ad.AdmissionAuthority.marshal()
+		if err != nil {
+			return nil, err
+		}
+		bb.Write(tmp)
+	}
+
+	adxbb := bytes.Buffer{}
+	for _, content := range ad.Contents {
+		tmp, err := content.marshal()
+		if err != nil {
+			return nil, err
+		}
+
+		adxbb.Write(tmp)
+	}
+
+	adxMarshalled, err := asn1.Marshal(asn1.RawValue{
+		Class:      asn1.ClassUniversal,
+		Tag:        asn1.TagSequence,
+		IsCompound: true,
+		Bytes:      adxbb.Bytes(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	bb.Write(adxMarshalled)
+
+	//finally wrap in sequence
+	axMarshalled, err := asn1.Marshal(asn1.RawValue{
+		Class:      asn1.ClassUniversal,
+		Tag:        asn1.TagSequence,
+		IsCompound: true,
+		Bytes:      bb.Bytes(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return axMarshalled, nil
+}
+
+func (ax Admissions) marshal() ([]byte, error) {
+	var err error
+	bb := bytes.Buffer{}
+	var tmp []byte
+
+	if ax.AdmissionAuthority != nil {
+		tmp, err = ax.AdmissionAuthority.marshal()
+		if err != nil {
+			return nil, err
+		}
+		bb.Write(makeExplicit(tmp))
+	}
+
+	tmp, err = partialMarshallStruct(ax, 1, 1)
+	if err != nil {
+		return nil, err
+	}
+	bb.Write(tmp)
+
+	pibb := bytes.Buffer{}
+	if len(ax.ProfessionInfos) > 0 {
+		for _, pi := range ax.ProfessionInfos {
+			tmp, err = pi.marshal()
+			if err != nil {
+				return nil, err
+			}
+			pibb.Write(tmp)
+		}
+
+		piMarshalled, err := asn1.Marshal(asn1.RawValue{
+			Class:      asn1.ClassUniversal,
+			Tag:        asn1.TagSequence,
+			IsCompound: true,
+			Bytes:      pibb.Bytes(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		bb.Write(piMarshalled)
+	}
+
+	//finally wrap in sequence
+	axMarshalled, err := asn1.Marshal(asn1.RawValue{
+		Class:      asn1.ClassUniversal,
+		Tag:        asn1.TagSequence,
+		IsCompound: true,
+		Bytes:      bb.Bytes(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return axMarshalled, nil
+}
+
+func (pi ProfessionInfo) marshal() ([]byte, error) {
+	var err error
+	bb := bytes.Buffer{}
+	var tmp []byte
+
+	tmp, err = partialMarshallStruct(pi, 0, 1)
+	if err != nil {
+		return nil, err
+	}
+	bb.Write(tmp)
+
+	if len(pi.ProfessionItems) > 0 {
+		bbItems := bytes.Buffer{}
+		for _, item := range pi.ProfessionItems {
+			tmp, err = asn1.MarshalWithParams(item, "utf8")
+			if err != nil {
+				return nil, err
+			}
+			bbItems.Write(tmp)
+		}
+		tmp, err := asn1.Marshal(asn1.RawValue{
+			Class:      asn1.ClassUniversal,
+			Tag:        asn1.TagSequence,
+			IsCompound: true,
+			Bytes:      bbItems.Bytes(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		bb.Write(tmp)
+	}
+
+	tmp, err = partialMarshallStruct(pi, 2, 3)
+	if err != nil {
+		return nil, err
+	}
+	bb.Write(tmp)
+
+	//finally wrap in sequence
+	piMarshalled, err := asn1.Marshal(asn1.RawValue{
+		Class:      asn1.ClassUniversal,
+		Tag:        asn1.TagSequence,
+		IsCompound: true,
+		Bytes:      bb.Bytes(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return piMarshalled, nil
+}
+
+// Create Admission Extension conforming to Common PKI V2.0_02
+func NewAdmission(critical bool, admission Admission) (*pkix.Extension, error) {
+	marshalled, err := admission.marshal()
+	if err != nil {
+		return nil, err
+	}
+	return &pkix.Extension{
+		Id:       oidExtensionAdmission,
+		Critical: critical,
+		Value:    marshalled,
+	}, nil
+}
+
+func NewAdmissionFromProfessionItems(critical bool, professionItems []string, professionOids []asn1.ObjectIdentifier, registrationNumber string) (*pkix.Extension, error) {
+	adm := Admission{
+		Contents: []Admissions{
+			{
+				ProfessionInfos: []ProfessionInfo{
+					{
+						ProfessionItems:    professionItems,
+						ProfessionOids:     professionOids,
+						RegistrationNumber: registrationNumber,
+					},
+				},
+			},
+		},
+	}
+
+	return NewAdmission(critical, adm)
 }

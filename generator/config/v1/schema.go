@@ -25,6 +25,9 @@ var dateSchemaString string
 //go:embed duration.json
 var DurationSchemaString string
 
+//go:embed general_name.json
+var generalNameSchemaString string
+
 //go:embed oid.json
 var oidSchemaString string
 
@@ -56,6 +59,7 @@ var certificateExample string
 // and the schemas that depend on them after that
 var schemas []schemaElement = []schemaElement{
 	{"date.json", dateSchemaString},
+	{"general_name.json", generalNameSchemaString},
 	{"oid.json", oidSchemaString},
 	{"duration.json", DurationSchemaString},
 	{"validity.json", validitySchemaString},

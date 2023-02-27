@@ -1446,5 +1446,141 @@
                 "raw": "!binary:AQIDBA=="
             }
         }
+    },
+    {
+        "expectSuccess": true,
+        "name": "admissionSmoke",
+        "comment": "this extension is huge, so here is a big ol smoketest",
+        "test": {
+            "admission": {
+                "content": {
+                    "admissionAuthority": {
+                        "type": "dns",
+                        "name": "www.mydomain.org"
+                    },
+                    "admissions": [
+                        {
+                            "admissionAuthority": {
+                                "type": "mail",
+                                "name": "theauthority@bla.org"
+                            },
+                            "namingAuthority": {
+                                "oid": "1.1.1",
+                                "url": "http://example.org",
+                                "text": "my-naming-authority"
+                            },
+                            "professionInfos": [
+                                {
+                                    "namingAuthorities": [
+                                        {
+                                            "oid": "1.2.3.4",
+                                            "url": "www.naming.auth",
+                                            "text": "another one"
+                                        }
+                                    ],
+                                    "professionItems": [
+                                        "Profession1",
+                                        "Profession2"
+                                    ],
+                                    "professionOids": [
+                                        "1.2.3.8",
+                                        "1.2.3.9"
+                                    ],
+                                    "registrationNumber": "1-2-3-4-5",
+                                    "addProfessionInfo": "!binary:AQIDBA=="
+                                }
+                            ]
+                        },
+                        {
+                            "admissionAuthority": {
+                                "type": "ip",
+                                "name": "10.12.13.14"
+                            },
+                            "namingAuthority": {
+                                "oid": "2.12.11",
+                                "url": "http://example2.org",
+                                "text": "the other naming authority"
+                            },
+                            "professionInfos": [
+                                {
+                                    "namingAuthorities": [
+                                        {
+                                            "oid": "1.2.3.4.1.1"
+                                        },
+                                        {
+                                            "text": "tiredofnamingthese"
+                                        },
+                                        {
+                                            "url": "http://mycrazyserver.whoa",
+                                            "text": "weeee"
+                                        }
+                                    ],
+                                    "professionItems": [
+                                        "cheater",
+                                        "lovinghusband"
+                                    ],
+                                    "professionOids": [
+                                        "1.2.3.7",
+                                        "1.2.3.8"
+                                    ],
+                                    "registrationNumber": "587",
+                                    "addProfessionInfo": "!binary:AQIDBA=="
+                                }
+                            ]
+                        },
+                        {
+                            "professionInfos": [
+                                {
+                                    "professionItems": [
+                                        "yes",
+                                        "yeeess"
+                                    ]
+                                },
+                                {
+                                    "professionOids": [
+                                        "1.2.3.7",
+                                        "1.2.3.8"
+                                    ],
+                                    "professionItems": [
+                                        "one",
+                                        "twooo"
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "admissionMinimalViable",
+        "test": {
+            "admission": {
+                "content": {
+                    "admissions": [
+                        {
+                            "professionInfos": [
+                                {
+                                    "professionItems": [
+                                        "My Cool Profession"
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "admissionEmpty",
+        "test": {
+            "admission": {
+                "content": {}
+            }
+        }
     }
 ]

@@ -1126,3 +1126,36 @@ func TestCustomExtensionBadOid(t *testing.T) {
 		t.Fatal("build with illegal raw string should fail")
 	}
 }
+
+func TestAdmissionEmpty(t *testing.T) {
+	extCfg := AdmissionExtension{
+		Content: &Admission{},
+	}
+
+	_, err := extCfg.Builder()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+}
+
+func TestAdmissionMinimumViable(t *testing.T) {
+	extCfg := AdmissionExtension{
+		Content: &Admission{
+			Admissions: []SingleAdmission{
+				{
+					ProfessionInfos: []ProfessionInfo{
+						{
+							ProfessionItems: []string{"Versicherte/r"},
+							ProfessionOids:  []string{"1.2.276.0.76.4.49"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := extCfg.Builder()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+}

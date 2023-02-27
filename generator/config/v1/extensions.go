@@ -38,12 +38,17 @@ type AnyExtension struct {
 	*AuthInfoAccess       `json:"authorityInformationAccess"`
 	*AuthKeyId            `json:"authorityKeyIdentifier"`
 	*ExtKeyUsage          `json:"extendedKeyUsage"`
+	*AdmissionExtension   `json:"admission"`
 	*CustomExtension      `json:"custom"`
 	Optional              bool `json:"optional"`
 	Override              bool `json:"override"`
 }
 
 type ExtensionType int
+
+//TODO: Handle conversion to cert config instances via interface
+//TODO: Generalize binary into own json file to incorporate NULL etc.
+//TODO: Same goes for generalNames.
 
 const (
 	TypeIllegal ExtensionType = iota
@@ -54,7 +59,7 @@ const (
 	TypeCertPolicies
 	TypeAuthInfoAccess
 	TypeAuthKeyId
-	TypeAdmission // TODO: actually add admission extension
+	TypeAdmission
 	TypeExtKeyUsage
 	TypeCustomExtension
 )
@@ -87,6 +92,47 @@ func parseExtensions(e []AnyExtension) ([]config.ExtensionConfig, error) {
 		}
 	}
 	return out[:], nil
+}
+
+type GeneralName struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
+func (g GeneralName) convert() (cert.GeneralName, error) {
+	switch g.Type {
+	case "ip":
+		var ipAddr cert.GeneralNameIP
+		octets := strings.Split(g.Name, ".")
+		if len(octets) != 4 {
+			return nil, fmt.Errorf("extensions: expected 4 orrctets, got %v from %v", len(octets), octets)
+		}
+		for j, octet := range octets {
+			v, err := strconv.Atoi(octet)
+			if err != nil {
+				return nil, fmt.Errorf("extensions: can't decode octet#%d. not a valid integer: %v", j, octet)
+			}
+			if v > 255 || v < 0 {
+				return nil, fmt.Errorf("extensions: can't decode octet#%d. out of bounds (0-255): %v", j, octet)
+			}
+			ipAddr[j] = uint8(v)
+		}
+
+		return ipAddr, nil
+	case "dns":
+		return cert.GeneralNameDNS(g.Name), nil
+	case "mail":
+		return cert.GeneralNameDNS(g.Name), nil
+	case "url":
+		return cert.GeneralNameDNS(g.Name), nil
+	case "":
+		//make sure to support empty values
+		return nil, nil
+
+	default:
+		return nil, errors.New("extensions: no general name recognized")
+	}
+
 }
 
 // JSON/YAML representation for this extension.
@@ -714,6 +760,173 @@ func (e ExtKeyUsage) Builder() (cert.ExtensionBuilder, error) {
 	}
 
 	return nil, fmt.Errorf("config-v1: [extendedKeyUsage] neither content nor raw-content is given")
+}
+
+type AdmissionExtension struct {
+	Raw      string     `json:"raw"`
+	Critical bool       `json:"critical"`
+	Content  *Admission `json:"content"`
+}
+
+type Admission struct {
+	AdmissionAuthority GeneralName       `json:"admissionAuthority"`
+	Admissions         []SingleAdmission `json:"admissions"`
+}
+
+func (a Admission) convert() (*cert.Admission, error) {
+	var err error
+	auth, err := a.AdmissionAuthority.convert()
+	if err != nil {
+		return nil, err
+	}
+
+	adms := make([]cert.Admissions, len(a.Admissions))
+	for i, adm := range a.Admissions {
+		admTmp, err := adm.convert()
+		if err != nil {
+			return nil, err
+		}
+		adms[i] = *admTmp
+	}
+
+	return &cert.Admission{
+		AdmissionAuthority: auth,
+		Contents:           adms,
+	}, nil
+}
+
+type NamingAuthority struct {
+	Oid  string `json:"oid"`
+	Url  string `json:"url"`
+	Text string `json:"text"`
+}
+
+func (n NamingAuthority) convert() (*cert.NamingAuthority, error) {
+	var err error
+	var nAuthOid asn1.ObjectIdentifier
+	if len(n.Oid) > 0 {
+		nAuthOid, err = cert.OidFromString(n.Oid)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &cert.NamingAuthority{
+		Oid:  nAuthOid,
+		URL:  n.Url,
+		Text: n.Text,
+	}, nil
+}
+
+type ProfessionInfo struct {
+	NamingAuthority    `json:"namingAuthority"`
+	ProfessionItems    []string `json:"professionItems"`
+	ProfessionOids     []string `json:"professionOids"`
+	RegistrationNumber string   `json:"registrationNumber"`
+	AddProfessionInfo  string   `json:"addProfessionInfo"`
+}
+
+type SingleAdmission struct {
+	AdmissionAuthority GeneralName `json:"admissionAuthority"`
+	NamingAuthority    `json:"namingAuthority"`
+	ProfessionInfos    []ProfessionInfo `json:"professionInfos"`
+}
+
+func (s SingleAdmission) convert() (*cert.Admissions, error) {
+	auth, err := s.AdmissionAuthority.convert()
+	if err != nil {
+		return nil, err
+	}
+
+	nameAuth, err := s.NamingAuthority.convert()
+	if err != nil {
+		return nil, err
+	}
+
+	profInfo := make([]cert.ProfessionInfo, len(s.ProfessionInfos))
+	for i, pi := range s.ProfessionInfos {
+		innerNameAuth, err := pi.NamingAuthority.convert()
+		if err != nil {
+			return nil, err
+		}
+		profOids := make([]asn1.ObjectIdentifier, len(pi.ProfessionOids))
+		for j, oid := range pi.ProfessionOids {
+			profOids[j], err = cert.OidFromString(oid)
+			if err != nil {
+				return nil, err
+			}
+		}
+		var addProfInfo []byte
+		if len(pi.AddProfessionInfo) > 0 {
+			addProfInfo, err = readRawString(pi.AddProfessionInfo)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		profInfo[i] = cert.ProfessionInfo{
+			NamingAuthority:    *innerNameAuth,
+			ProfessionItems:    pi.ProfessionItems,
+			ProfessionOids:     profOids,
+			RegistrationNumber: pi.RegistrationNumber,
+			AddProfessionInfo:  addProfInfo,
+		}
+
+	}
+
+	return &cert.Admissions{
+		AdmissionAuthority: auth,
+		NamingAuthority:    *nameAuth,
+		ProfessionInfos:    profInfo,
+	}, nil
+}
+
+func (a AdmissionExtension) Oid() (asn1.ObjectIdentifier, error) {
+	oid, ok := cert.GetOid(cert.OidExtensionAdmission)
+	if !ok {
+		panic("Bug: Extension OID not in bounds!")
+	}
+
+	return oid, nil
+}
+
+func (a AdmissionExtension) Builder() (cert.ExtensionBuilder, error) {
+	if len(a.Raw) != 0 && a.Content == nil {
+		return nil, errors.New(
+			"config-v1: [admission] ambiguous definition; content and raw both are given")
+	}
+
+	if len(a.Raw) != 0 {
+		oid, ok := cert.GetOid(cert.OidExtensionAdmission)
+		if !ok {
+			panic("Bug: Extension OID not in bounds!")
+		}
+
+		b, err := readRawString(a.Raw)
+		if err != nil {
+			return nil, err
+		}
+		return config.ConstantBuilder{
+			Extension: pkix.Extension{
+				Id:       oid,
+				Critical: a.Critical,
+				Value:    b,
+			},
+		}, nil
+	} else if a.Content != nil {
+		adConverted, err := a.Content.convert()
+		if err != nil {
+			return nil, err
+		}
+		ext, err := cert.NewAdmission(a.Critical, *adConverted)
+		if err != nil {
+			return nil, err
+		}
+
+		return config.ConstantBuilder{Extension: *ext}, nil
+	}
+
+	return nil, fmt.Errorf("config-v1: [admission] neither content nor raw-content is given")
 }
 
 // JSON/YAML representation for this custom extensions.
