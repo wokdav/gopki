@@ -2,16 +2,19 @@
     "$id": "extension.json",
     "type": "object",
     "properties": {
+        "optional": {
+            "type": "boolean"
+        },
+        "override": {
+            "type": "boolean"
+        },
         "subjectKeyIdentifier": {
-            "type": "object",
+            "type": [
+                "object",
+                "null"
+            ],
             "properties": {
                 "critical": {
-                    "type": "boolean"
-                },
-                "optional": {
-                    "type": "boolean"
-                },
-                "override": {
                     "type": "boolean"
                 },
                 "raw": {
@@ -22,39 +25,15 @@
                     "pattern": "(hash)|(!binary:[A-Za-z0-9+/=]+)"
                 }
             },
-            "additionalProperties": false,
-            "anyOf": [
-                {
-                    "required": [
-                        "override"
-                    ]
-                },
-                {
-                    "oneOf": [
-                        {
-                            "required": [
-                                "content"
-                            ]
-                        },
-                        {
-                            "required": [
-                                "raw"
-                            ]
-                        }
-                    ]
-                }
-            ]
+            "additionalProperties": false
         },
         "keyUsage": {
-            "type": "object",
+            "type": [
+                "object",
+                "null"
+            ],
             "properties": {
                 "critical": {
-                    "type": "boolean"
-                },
-                "optional": {
-                    "type": "boolean"
-                },
-                "override": {
                     "type": "boolean"
                 },
                 "raw": {
@@ -75,39 +54,15 @@
                     }
                 }
             },
-            "additionalProperties": false,
-            "anyOf": [
-                {
-                    "required": [
-                        "override"
-                    ]
-                },
-                {
-                    "oneOf": [
-                        {
-                            "required": [
-                                "content"
-                            ]
-                        },
-                        {
-                            "required": [
-                                "raw"
-                            ]
-                        }
-                    ]
-                }
-            ]
+            "additionalProperties": false
         },
         "subjectAlternativeName": {
-            "type": "object",
+            "type": [
+                "object",
+                "null"
+            ],
             "properties": {
                 "critical": {
-                    "type": "boolean"
-                },
-                "optional": {
-                    "type": "boolean"
-                },
-                "override": {
                     "type": "boolean"
                 },
                 "raw": {
@@ -133,39 +88,15 @@
                     }
                 }
             },
-            "additionalProperties": false,
-            "anyOf": [
-                {
-                    "required": [
-                        "override"
-                    ]
-                },
-                {
-                    "oneOf": [
-                        {
-                            "required": [
-                                "content"
-                            ]
-                        },
-                        {
-                            "required": [
-                                "raw"
-                            ]
-                        }
-                    ]
-                }
-            ]
+            "additionalProperties": false
         },
         "basicConstraints": {
-            "type": "object",
+            "type": [
+                "object",
+                "null"
+            ],
             "properties": {
                 "critical": {
-                    "type": "boolean"
-                },
-                "optional": {
-                    "type": "boolean"
-                },
-                "override": {
                     "type": "boolean"
                 },
                 "raw": {
@@ -185,39 +116,15 @@
                     "additionalProperties": false
                 }
             },
-            "additionalProperties": false,
-            "anyOf": [
-                {
-                    "required": [
-                        "override"
-                    ]
-                },
-                {
-                    "oneOf": [
-                        {
-                            "required": [
-                                "content"
-                            ]
-                        },
-                        {
-                            "required": [
-                                "raw"
-                            ]
-                        }
-                    ]
-                }
-            ]
+            "additionalProperties": false
         },
         "certificatePolicies": {
-            "type": "object",
+            "type": [
+                "object",
+                "null"
+            ],
             "properties": {
                 "critical": {
-                    "type": "boolean"
-                },
-                "optional": {
-                    "type": "boolean"
-                },
-                "override": {
                     "type": "boolean"
                 },
                 "raw": {
@@ -285,39 +192,15 @@
                     }
                 }
             },
-            "additionalProperties": false,
-            "anyOf": [
-                {
-                    "required": [
-                        "override"
-                    ]
-                },
-                {
-                    "oneOf": [
-                        {
-                            "required": [
-                                "content"
-                            ]
-                        },
-                        {
-                            "required": [
-                                "raw"
-                            ]
-                        }
-                    ]
-                }
-            ]
+            "additionalProperties": false
         },
         "authorityInformationAccess": {
-            "type": "object",
+            "type": [
+                "object",
+                "null"
+            ],
             "properties": {
                 "critical": {
-                    "type": "boolean"
-                },
-                "optional": {
-                    "type": "boolean"
-                },
-                "override": {
                     "type": "boolean"
                 },
                 "raw": {
@@ -336,39 +219,15 @@
                     }
                 }
             },
-            "additionalProperties": false,
-            "anyOf": [
-                {
-                    "required": [
-                        "override"
-                    ]
-                },
-                {
-                    "oneOf": [
-                        {
-                            "required": [
-                                "content"
-                            ]
-                        },
-                        {
-                            "required": [
-                                "raw"
-                            ]
-                        }
-                    ]
-                }
-            ]
+            "additionalProperties": false
         },
         "authorityKeyIdentifier": {
-            "type": "object",
+            "type": [
+                "object",
+                "null"
+            ],
             "properties": {
                 "critical": {
-                    "type": "boolean"
-                },
-                "optional": {
-                    "type": "boolean"
-                },
-                "override": {
                     "type": "boolean"
                 },
                 "raw": {
@@ -385,39 +244,15 @@
                     "additionalProperties": false
                 }
             },
-            "additionalProperties": false,
-            "anyOf": [
-                {
-                    "required": [
-                        "override"
-                    ]
-                },
-                {
-                    "oneOf": [
-                        {
-                            "required": [
-                                "content"
-                            ]
-                        },
-                        {
-                            "required": [
-                                "raw"
-                            ]
-                        }
-                    ]
-                }
-            ]
+            "additionalProperties": false
         },
         "admission": {
-            "type": "object",
+            "type": [
+                "object",
+                "null"
+            ],
             "properties": {
                 "critical": {
-                    "type": "boolean"
-                },
-                "optional": {
-                    "type": "boolean"
-                },
-                "override": {
                     "type": "boolean"
                 },
                 "raw": {
@@ -445,39 +280,15 @@
                     }
                 }
             },
-            "additionalProperties": false,
-            "anyOf": [
-                {
-                    "required": [
-                        "override"
-                    ]
-                },
-                {
-                    "oneOf": [
-                        {
-                            "required": [
-                                "content"
-                            ]
-                        },
-                        {
-                            "required": [
-                                "raw"
-                            ]
-                        }
-                    ]
-                }
-            ]
+            "additionalProperties": false
         },
         "extendedKeyUsage": {
-            "type": "object",
+            "type": [
+                "object",
+                "null"
+            ],
             "properties": {
                 "critical": {
-                    "type": "boolean"
-                },
-                "optional": {
-                    "type": "boolean"
-                },
-                "override": {
                     "type": "boolean"
                 },
                 "raw": {
@@ -505,39 +316,15 @@
                     }
                 }
             },
-            "additionalProperties": false,
-            "anyOf": [
-                {
-                    "required": [
-                        "override"
-                    ]
-                },
-                {
-                    "oneOf": [
-                        {
-                            "required": [
-                                "content"
-                            ]
-                        },
-                        {
-                            "required": [
-                                "raw"
-                            ]
-                        }
-                    ]
-                }
-            ]
+            "additionalProperties": false
         },
         "custom": {
-            "type": "object",
+            "type": [
+                "object",
+                "null"
+            ],
             "properties": {
                 "critical": {
-                    "type": "boolean"
-                },
-                "optional": {
-                    "type": "boolean"
-                },
-                "override": {
                     "type": "boolean"
                 },
                 "raw": {
@@ -547,22 +334,64 @@
                     "$ref": "oid.json"
                 }
             },
-            "additionalProperties": false,
-            "anyOf": [
-                {
-                    "required": [
-                        "override"
-                    ]
-                },
-                {
-                    "required": [
-                        "raw"
-                    ]
-                }
-            ]
+            "required": [
+                "oid",
+                "raw"
+            ],
+            "additionalProperties": false
         }
     },
-    "additionalProperties": false,
-    "minProperties": 1,
-    "maxProperties": 1
+    "oneOf": [
+        {
+            "required": [
+                "subjectKeyIdentifier"
+            ]
+        },
+        {
+            "required": [
+                "keyUsage"
+            ]
+        },
+        {
+            "required": [
+                "subjectAlternativeName"
+            ]
+        },
+        {
+            "required": [
+                "basicConstraints"
+            ]
+        },
+        {
+            "required": [
+                "certificatePolicies"
+            ]
+        },
+        {
+            "required": [
+                "authorityInformationAccess"
+            ]
+        },
+        {
+            "required": [
+                "authorityKeyIdentifier"
+            ]
+        },
+        {
+            "required": [
+                "admission"
+            ]
+        },
+        {
+            "required": [
+                "extendedKeyUsage"
+            ]
+        },
+        {
+            "required": [
+                "custom"
+            ]
+        }
+    ],
+    "additionalProperties": false
 }

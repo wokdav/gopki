@@ -202,12 +202,15 @@ func initProfile(p Profile) (*config.CertificateProfile, error) {
 		}
 	}
 
-	logging.Debugf("effective 'from' time value: %v", out.ValidFrom)
-	logging.Debugf("effective 'to' time value: %v", out.ValidUntil)
-
-	out.Extensions, err = parseExtensions(p.Extensions)
+	extTmp, err := parseExtensions(p.Extensions)
 	if err != nil {
 		return nil, err
+	}
+
+	out.Extensions = make([]config.ProfileExtension, len(extTmp))
+	for i, e := range extTmp {
+		out.Extensions[i] = config.ProfileExtension{ExtensionConfig: e,
+			ExtensionProfile: config.ExtensionProfile{Override: p.Extensions[i].Override, Optional: p.Extensions[i].Optional}}
 	}
 
 	return &out, nil

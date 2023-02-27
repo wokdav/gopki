@@ -11,8 +11,8 @@ extensions:
       content:
         - oid: 2.16.840.1.101.3.2.1.48.1
   - subjectAlternativeName:
-      optional: no
-      override: yes
+    optional: no
+    override: yes
   - keyUsage:
       critical: true
       content:

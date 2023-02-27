@@ -231,18 +231,12 @@ func TestMergeValidity(t *testing.T) {
 }
 
 type testExt struct {
-	content  string
-	override bool
-	optional bool
-	oid      asn1.ObjectIdentifier
+	Content string
+	asn1.ObjectIdentifier
 }
 
 func (t testExt) Oid() (asn1.ObjectIdentifier, error) {
-	return t.oid, nil
-}
-
-func (t testExt) Profile() ExtensionProfile {
-	return ExtensionProfile{Optional: t.optional, Override: t.override}
+	return t.ObjectIdentifier, nil
 }
 
 func (t testExt) ContentEquals(other ExtensionConfig) bool {
@@ -251,102 +245,99 @@ func (t testExt) ContentEquals(other ExtensionConfig) bool {
 		return false
 	}
 
-	return t.content == otherCasted.content
+	return t.Content == otherCasted.Content
 }
 
 func (t testExt) Builder() (cert.ExtensionBuilder, error) {
 	return ConstantBuilder{
 		Extension: pkix.Extension{
-			Id:       t.oid,
+			Id:       t.ObjectIdentifier,
 			Critical: false,
-			Value:    []byte(t.content),
+			Value:    []byte(t.Content),
 		},
 	}, nil
 }
 
 func TestMergeExtensions(t *testing.T) {
 	type testVector struct {
-		profile    []ExtensionConfig
+		profile    []ProfileExtension
 		certConfig []ExtensionConfig
 		result     []ExtensionConfig
 	}
 
-	ext := testExt{oid: asn1.ObjectIdentifier{1, 2, 3, 4}}
+	ext := testExt{ObjectIdentifier: asn1.ObjectIdentifier{1, 2, 3, 4}}
 
-	extOverride := ext
-	extOverride.override = true
-
-	extOptional := ext
-	extOptional.optional = true
+	extProf := ProfileExtension{ext, ExtensionProfile{}}
+	extOverride := ProfileExtension{ext, ExtensionProfile{Override: true}}
+	extOptional := ProfileExtension{ext, ExtensionProfile{Optional: true}}
 
 	extDifferentContent := ext
-	extDifferentContent.content = "im different"
+	extDifferentContent.Content = "im different"
 
-	ext2 := testExt{oid: asn1.ObjectIdentifier{5, 6, 7, 8}}
+	ext2 := testExt{ObjectIdentifier: asn1.ObjectIdentifier{5, 6, 7, 8}}
 
-	ext2Override := ext2
-	ext2Override.override = true
+	ext2Override := ProfileExtension{ext2, ExtensionProfile{Override: true}}
 
 	tests := []testVector{
 		{
-			profile:    []ExtensionConfig{},
+			profile:    []ProfileExtension{},
 			certConfig: []ExtensionConfig{},
 			result:     []ExtensionConfig{},
 		}, {
 			//if cert does not have it, add it
-			profile:    []ExtensionConfig{ext},
+			profile:    []ProfileExtension{extProf},
 			certConfig: []ExtensionConfig{},
 			result:     []ExtensionConfig{ext},
 		}, {
 			//check that identical extensions are not added
-			profile:    []ExtensionConfig{ext},
+			profile:    []ProfileExtension{extProf},
 			certConfig: []ExtensionConfig{ext},
 			result:     []ExtensionConfig{ext},
 		}, {
 			//different ones with the same oid should be replaced
-			profile:    []ExtensionConfig{extOverride},
+			profile:    []ProfileExtension{extOverride},
 			certConfig: []ExtensionConfig{extDifferentContent},
 			result:     []ExtensionConfig{extDifferentContent},
 		}, {
 			//except when they are not to be overwritten
 			//then they are added with profile extensions at the top
-			profile:    []ExtensionConfig{ext},
+			profile:    []ProfileExtension{extProf},
 			certConfig: []ExtensionConfig{extDifferentContent},
 			result:     []ExtensionConfig{ext, extDifferentContent},
 		}, {
 			//leave other extensions unaffected
-			profile:    []ExtensionConfig{ext},
+			profile:    []ProfileExtension{extProf},
 			certConfig: []ExtensionConfig{ext2},
 			result:     []ExtensionConfig{ext, ext2},
 		}, {
 			//leave other extensions unaffected on override
-			profile:    []ExtensionConfig{ext, ext2Override},
+			profile:    []ProfileExtension{extProf, ext2Override},
 			certConfig: []ExtensionConfig{ext2},
 			result:     []ExtensionConfig{ext, ext2},
 		}, {
 			//accept override even if it does not immediately follow
-			profile:    []ExtensionConfig{extOverride},
+			profile:    []ProfileExtension{extOverride},
 			certConfig: []ExtensionConfig{ext2, ext},
 			result:     []ExtensionConfig{ext2, ext},
 		}, {
 			//accept override even if order is different
-			profile:    []ExtensionConfig{extOverride, ext2Override},
+			profile:    []ProfileExtension{extOverride, ext2Override},
 			certConfig: []ExtensionConfig{ext2, ext},
 			result:     []ExtensionConfig{ext2, ext},
 		}, {
 			//handle multiples part
-			profile:    []ExtensionConfig{ext, ext, ext},
+			profile:    []ProfileExtension{extProf, extProf, extProf},
 			certConfig: []ExtensionConfig{ext},
 			result:     []ExtensionConfig{ext, ext, ext},
 		}, {
 			//handle optionals I
-			profile:    []ExtensionConfig{extOptional},
+			profile:    []ProfileExtension{extOptional},
 			certConfig: []ExtensionConfig{},
 			result:     []ExtensionConfig{},
 		},
 		{
 			//handle optionals III
-			profile:    []ExtensionConfig{extOptional},
+			profile:    []ProfileExtension{extOptional},
 			certConfig: []ExtensionConfig{ext},
 			result:     []ExtensionConfig{ext},
 		},
@@ -422,5 +413,53 @@ func TestParseRdnSequence(t *testing.T) {
 				t.Fatalf("expected '%s', got '%s'", expected, got)
 			}
 		})
+	}
+}
+
+func TestCertContentHashSum(t *testing.T) {
+	subject, err := ParseRDNSequence("CN=Test")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	cert := CertificateContent{
+		Subject:    subject,
+		Extensions: []ExtensionConfig{testExt{ObjectIdentifier: asn1.ObjectIdentifier{5, 6, 7, 8}}},
+	}
+
+	// hash should be the same for the same content
+	hash1, err := cert.HashSum()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	hash2, err := cert.HashSum()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if !reflect.DeepEqual(hash1, hash2) {
+		t.Fatal("hashes are different")
+	}
+
+	// hash should be different for different subject
+	cert.Subject, err = ParseRDNSequence("CN=Test2")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	hash3, err := cert.HashSum()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if reflect.DeepEqual(hash1, hash3) {
+		t.Fatal("hashes are the same")
+	}
+
+	// hash should be different for different extension
+	cert.Extensions = []ExtensionConfig{testExt{ObjectIdentifier: asn1.ObjectIdentifier{5, 6, 7, 9}}}
+	hash4, err := cert.HashSum()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if reflect.DeepEqual(hash3, hash4) {
+		t.Fatal("hashes are the same")
 	}
 }

@@ -1,3 +1,5 @@
+package config
+
 // Package that provides certificate and profile configurations.
 // It supports configuration versioning, having each implementation
 // register themselves in this package.
@@ -17,11 +19,12 @@
 // Additionally it provides several utility functions for profile
 // verification and merging.
 
-package config
-
 import (
+	"bytes"
+	"crypto/sha1"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -125,6 +128,26 @@ type CertificateContent struct {
 	Extensions         []ExtensionConfig
 }
 
+// HashSum returns a sha1 hash of the content
+// For HashSum to work, it is required, that all fields are exported.
+// This also goes for all implementations of ExtensionConfig.
+func (c CertificateContent) HashSum() ([]byte, error) {
+	//marshal c to json
+	b, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+
+	//hash json with sha1
+	alg := sha1.New()
+	_, err = alg.Write(b)
+	if err != nil {
+		return nil, err
+	}
+
+	return alg.Sum(nil), nil
+}
+
 type ProfileSubjectAttribute struct {
 	Attribute string `json:"attribute"`
 	Optional  bool   `json:"optional"`
@@ -135,13 +158,37 @@ type ProfileSubjectAttributes struct {
 	Attributes []ProfileSubjectAttribute `json:"attributes"`
 }
 
+type ProfileExtension struct {
+	ExtensionConfig
+	ExtensionProfile
+}
+
 // The general representation of a certificate profile.
 type CertificateProfile struct {
 	Name              string
 	ValidFrom         *time.Time
 	ValidUntil        *time.Time
 	SubjectAttributes ProfileSubjectAttributes
-	Extensions        []ExtensionConfig
+	Extensions        []ProfileExtension
+}
+
+// HashSum returns a sha1 hash of the profile
+// See remarks on CertificateContent.HashSum
+func (cp CertificateProfile) HashSum() ([]byte, error) {
+	//marshal c to json
+	b, err := json.Marshal(cp)
+	if err != nil {
+		return nil, err
+	}
+
+	//hash json with sha1
+	alg := sha1.New()
+	_, err = alg.Write(b)
+	if err != nil {
+		return nil, err
+	}
+
+	return alg.Sum(nil), nil
 }
 
 // Each extension must have these values in order for a
@@ -159,8 +206,6 @@ type ExtensionProfile struct {
 // The builder function is there so that the [cert]
 // package can build the extension iteself.
 type ExtensionConfig interface {
-	Profile() ExtensionProfile
-	ContentEquals(ExtensionConfig) bool
 	Oid() (asn1.ObjectIdentifier, error)
 	Builder() (cert.ExtensionBuilder, error)
 }
@@ -370,7 +415,8 @@ func Merge(profile CertificateProfile, content CertificateContent) (*Certificate
 	newExt := make([]ExtensionConfig, 0, len(profile.Extensions)+len(content.Extensions))
 
 	certExtsHandled := make([]int, 0, len(content.Extensions))
-	for _, profExt := range profile.Extensions {
+	for _, profExtOuter := range profile.Extensions {
+		profExt := profExtOuter.ExtensionConfig
 		oidProf, err := profExt.Oid()
 		if err != nil {
 			return nil, err
@@ -400,7 +446,16 @@ func Merge(profile CertificateProfile, content CertificateContent) (*Certificate
 				handled = true
 				certExtsHandled = append(certExtsHandled, i)
 
-				if !profExt.Profile().Override && !profExt.ContentEquals(certExt) {
+				certExtJson, err := json.Marshal(certExt)
+				if err != nil {
+					return nil, err
+				}
+				profExtJson, err := json.Marshal(profExt)
+				if err != nil {
+					return nil, err
+				}
+
+				if !profExtOuter.Override && !bytes.Equal(certExtJson, profExtJson) {
 					newExt = append(newExt, profExt)
 				}
 
@@ -408,7 +463,7 @@ func Merge(profile CertificateProfile, content CertificateContent) (*Certificate
 			}
 		}
 
-		if !handled && !profExt.Profile().Optional {
+		if !handled && !profExtOuter.Optional {
 			newExt = append(newExt, profExt)
 		}
 	}

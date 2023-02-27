@@ -50,32 +50,15 @@
     },
     {
         "expectSuccess": false,
-        "name": "subjKeyIdMissingOverrideOrContent1",
-        "test": {
-            "subjectKeyIdentifier": {}
-        }
-    },
-    {
-        "expectSuccess": false,
-        "name": "subjKeyIdMissingOverrideOrContent2",
-        "test": {
-            "subjectKeyIdentifier": {
-                "critical": true,
-                "optional": false
-            }
-        }
-    },
-    {
-        "expectSuccess": false,
         "name": "subjKeyIdUnknownKey",
         "test": {
             "subjectKeyIdentifier": {
                 "content": "hash",
                 "critical": true,
-                "optional": false,
-                "override": true,
                 "unknownKey": true
-            }
+            },
+            "optional": false,
+            "override": true
         }
     },
     {
@@ -84,20 +67,10 @@
         "test": {
             "subjectKeyIdentifier": {
                 "content": "blarb",
-                "critical": true,
-                "optional": false,
-                "override": true
-            }
-        }
-    },
-    {
-        "expectSuccess": false,
-        "name": "subjKeyIdContentRawExclusive",
-        "test": {
-            "subjectKeyIdentifier": {
-                "content": "hash",
-                "raw": "!binary:AQIDBA=="
-            }
+                "critical": true
+            },
+            "optional": false,
+            "override": true
         }
     },
     {
@@ -115,10 +88,10 @@
         "test": {
             "keyUsage": {
                 "content": [],
-                "critical": true,
-                "optional": false,
-                "override": true
-            }
+                "critical": true
+            },
+            "optional": false,
+            "override": true
         }
     },
     {
@@ -193,13 +166,6 @@
     },
     {
         "expectSuccess": false,
-        "name": "keyUsageAllEmpty",
-        "test": {
-            "keyUsage": {}
-        }
-    },
-    {
-        "expectSuccess": false,
         "name": "keyUsageBadValue",
         "test": {
             "keyUsage": {
@@ -263,18 +229,6 @@
         }
     },
     {
-        "expectSuccess": false,
-        "name": "keyUsageWrongContentRaw2",
-        "test": {
-            "keyUsage": {
-                "content": [
-                    "digitalSignature"
-                ],
-                "raw": "!binary:AQIDBA=="
-            }
-        }
-    },
-    {
         "expectSuccess": true,
         "name": "subjAltNameEmpty",
         "test": {
@@ -289,10 +243,10 @@
         "test": {
             "subjectAlternativeName": {
                 "content": [],
-                "critical": true,
-                "optional": false,
-                "override": true
-            }
+                "critical": true
+            },
+            "optional": false,
+            "override": true
         }
     },
     {
@@ -425,13 +379,6 @@
     },
     {
         "expectSuccess": false,
-        "name": "subjAltNameNil",
-        "test": {
-            "subjectAlternativeName": {}
-        }
-    },
-    {
-        "expectSuccess": false,
         "name": "subjAltNameNilType",
         "test": {
             "subjectAlternativeName": [
@@ -498,18 +445,6 @@
                     "dns:testdomain.testserver.org"
                 ],
                 "oid": "1.2.3.4.5"
-            }
-        }
-    },
-    {
-        "expectSuccess": false,
-        "name": "subjAltNameRawExclusive",
-        "test": {
-            "subjectAlternativeName": {
-                "content": [
-                    "ip:127.0.0.1"
-                ],
-                "raw": "!binary:AQIDBA=="
             }
         }
     },
@@ -588,13 +523,6 @@
     },
     {
         "expectSuccess": false,
-        "name": "bcNil",
-        "test": {
-            "basicConstraints": {}
-        }
-    },
-    {
-        "expectSuccess": false,
         "name": "bcUnknownKey",
         "test": {
             "basicConstraints": {
@@ -634,33 +562,11 @@
         }
     },
     {
-        "expectSuccess": false,
-        "name": "bcRawExclusive",
-        "test": {
-            "basicConstraints": {
-                "content": {
-                    "ca": false
-                },
-                "raw": "!binary:AQIDBA=="
-            }
-        }
-    },
-    {
         "expectSuccess": true,
         "name": "cpEmpty",
         "test": {
             "certificatePolicies": {
                 "content": []
-            }
-        }
-    },
-    {
-        "expectSuccess": true,
-        "skipParserCheck": true,
-        "name": "cpProfile",
-        "test": {
-            "certificatePolicies": {
-                "override": true
             }
         }
     },
@@ -876,13 +782,6 @@
     },
     {
         "expectSuccess": false,
-        "name": "cpNil",
-        "test": {
-            "certificatePolicies": {}
-        }
-    },
-    {
-        "expectSuccess": false,
         "name": "cpUnknownKey",
         "test": {
             "certificatePolicies": {
@@ -932,20 +831,6 @@
                     }
                 ],
                 "oid": "1.2.3.4.5"
-            }
-        }
-    },
-    {
-        "expectSuccess": false,
-        "name": "cpRawExclusive",
-        "test": {
-            "certificatePolicies": {
-                "content": [
-                    {
-                        "oid": "1.2.3.4.5"
-                    }
-                ],
-                "raw": "!binary:AQIDBA=="
             }
         }
     },
@@ -1023,13 +908,6 @@
     },
     {
         "expectSuccess": false,
-        "name": "aiaNil",
-        "test": {
-            "authorityInformationAccess": {}
-        }
-    },
-    {
-        "expectSuccess": false,
         "name": "aiaUnknownKey",
         "test": {
             "authorityInformationAccess": {
@@ -1077,20 +955,6 @@
                     }
                 ],
                 "oid": "1.2.3.4.5"
-            }
-        }
-    },
-    {
-        "expectSuccess": false,
-        "name": "aiaRawExclusive",
-        "test": {
-            "authorityInformationAccess": {
-                "content": [
-                    {
-                        "ocsp": "http://ocsp.server.org:8080"
-                    }
-                ],
-                "raw": "!binary:AQIDBA=="
             }
         }
     },
@@ -1160,19 +1024,11 @@
     },
     {
         "expectSuccess": false,
-        "name": "authKeyIdNull",
-        "test": {
-            "authorityKeyIdentifier": {}
-        }
-    },
-    {
-        "expectSuccess": false,
         "name": "authKeyIdNoBody",
         "test": {
-            "authorityKeyIdentifier": {
-                "critical": true,
-                "optional": false
-            }
+            "authorityKeyIdentifier": {},
+            "critical": true,
+            "optional": false
         }
     },
     {
@@ -1182,10 +1038,10 @@
             "authorityKeyIdentifier": {
                 "content": "hash",
                 "critical": true,
-                "optional": false,
-                "override": true,
                 "unknownKey": true
-            }
+            },
+            "optional": false,
+            "override": true
         }
     },
     {
@@ -1194,10 +1050,10 @@
         "test": {
             "authorityKeyIdentifier": {
                 "content": "blarb",
-                "critical": true,
-                "optional": false,
-                "override": true
-            }
+                "critical": true
+            },
+            "optional": false,
+            "override": true
         }
     },
     {
@@ -1225,42 +1081,6 @@
         }
     },
     {
-        "expectSuccess": false,
-        "name": "authKeyIdRawExclusive",
-        "test": {
-            "authorityKeyIdentifier": {
-                "content": {
-                    "id": "hash"
-                },
-                "raw": "!empty"
-            }
-        }
-    },
-    {
-        "expectSuccess": false,
-        "name": "authKeyIdNull",
-        "test": {
-            "authorityKeyIdentifier": {
-                "content": {
-                    "id": "hash"
-                },
-                "raw": "!null"
-            }
-        }
-    },
-    {
-        "expectSuccess": false,
-        "name": "authKeyIdRawExclusive",
-        "test": {
-            "authorityKeyIdentifier": {
-                "content": {
-                    "id": "hash"
-                },
-                "raw": "!empty"
-            }
-        }
-    },
-    {
         "expectSuccess": true,
         "name": "extKeyUsageEmpty",
         "test": {
@@ -1275,10 +1095,10 @@
         "test": {
             "extendedKeyUsage": {
                 "content": [],
-                "critical": true,
-                "optional": false,
-                "override": true
-            }
+                "critical": true
+            },
+            "optional": false,
+            "override": true
         }
     },
     {
@@ -1354,13 +1174,6 @@
     },
     {
         "expectSuccess": false,
-        "name": "extKeyUsageNoContent",
-        "test": {
-            "extendedKeyUsage": {}
-        }
-    },
-    {
-        "expectSuccess": false,
         "name": "extKeyUsageUnknownKey",
         "test": {
             "extendedKeyUsage": {
@@ -1417,18 +1230,6 @@
                     "serverAuth"
                 ],
                 "oid": "1.2.3.4.5"
-            }
-        }
-    },
-    {
-        "expectSuccess": false,
-        "name": "extKeyUsageNoCustomData",
-        "test": {
-            "extendedKeyUsage": {
-                "content": [
-                    "serverAuth"
-                ],
-                "raw": "!empty"
             }
         }
     },
@@ -1557,10 +1358,10 @@
             "custom": {
                 "critical": true,
                 "oid": "1.2.3.4.5",
-                "optional": false,
-                "override": true,
                 "raw": "!binary:AQIDBA=="
-            }
+            },
+            "optional": false,
+            "override": true
         }
     },
     {

@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -477,79 +478,66 @@ func TestParseAnyExtension(t *testing.T) {
 		expect config.ExtensionConfig
 	}
 
-	extprof := config.ExtensionProfile{
-		Optional: true, Override: true,
-	}
-
 	subjKeyId := AnyExtension{
 		SubjectKeyIdentifier: &SubjectKeyIdentifier{
-			Critical:         true,
-			ExtensionProfile: extprof,
-			Content:          "hash",
+			Critical: true,
+			Content:  "hash",
 		},
 	}
 
 	keyUsage := AnyExtension{
 		KeyUsage: &KeyUsage{
-			Critical:         true,
-			ExtensionProfile: extprof,
-			Content:          []string{"digitalSignature", "crlSign"},
+			Critical: true,
+			Content:  []string{"digitalSignature", "crlSign"},
 		},
 	}
 
 	subjAltName := AnyExtension{
 		SubjectAltName: &SubjectAltName{
-			Critical:         true,
-			ExtensionProfile: extprof,
-			Content:          []SubjAltNameComponent{{Type: "CN", Name: "Foo"}},
+			Critical: true,
+			Content:  []SubjAltNameComponent{{Type: "CN", Name: "Foo"}},
 		},
 	}
 
 	basicConstraints := AnyExtension{
 		BasicConstraints: &BasicConstraints{
-			Critical:         true,
-			ExtensionProfile: extprof,
-			Content:          &BasicConstraintsObj{true, 2},
+			Critical: true,
+			Content:  &BasicConstraintsObj{true, 2},
 		},
 	}
 
 	certPolicies := AnyExtension{
 		CertPolicies: &CertPolicies{
-			Critical:         true,
-			ExtensionProfile: extprof,
-			Content:          []CertPolicy{{Oid: "1.2.3.4"}},
+			Critical: true,
+			Content:  []CertPolicy{{Oid: "1.2.3.4"}},
 		},
 	}
 
 	aia := AnyExtension{
 		AuthInfoAccess: &AuthInfoAccess{
-			Critical:         true,
-			ExtensionProfile: extprof,
-			Content:          []SingleAuthInfo{{Ocsp: "ocsp.acme.com"}},
+			Critical: true,
+			Content:  []SingleAuthInfo{{Ocsp: "ocsp.acme.com"}},
 		},
 	}
 
 	authKid := AnyExtension{
 		AuthKeyId: &AuthKeyId{
-			Critical:         true,
-			ExtensionProfile: extprof,
-			Content:          AuthKeyIdContent{Id: "hash"},
+			Critical: true,
+			Content:  AuthKeyIdContent{Id: "hash"},
 		},
 	}
 
 	extKeyUsage := AnyExtension{
 		ExtKeyUsage: &ExtKeyUsage{
-			Critical:         true,
-			ExtensionProfile: extprof,
-			Content:          []string{"serverAuth"},
+			Critical: true,
+			Content:  []string{"serverAuth"},
 		},
 	}
 
 	custom := AnyExtension{
 		CustomExtension: &CustomExtension{
-			Critical:         true,
-			ExtensionProfile: extprof,
-			Raw:              "!binary:AQIDBA==",
+			Critical: true,
+			Raw:      "!binary:AQIDBA==",
 		},
 	}
 
@@ -601,7 +589,10 @@ func TestParseAnyExtension(t *testing.T) {
 				t.Fatal(err.Error())
 			}
 
-			if !cfg[0].ContentEquals(test.expect) {
+			expectJson, _ := json.Marshal(test.expect)
+			gotJson, _ := json.Marshal(cfg[0])
+
+			if !bytes.Equal(expectJson, gotJson) {
 				t.Fatal("content not equal")
 			}
 		})

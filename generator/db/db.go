@@ -28,6 +28,16 @@ const (
 	UpdateAll         UpdateStrategy = 8
 )
 
+type ConfigStore interface {
+	Put(config.CertificateContent) error
+	Get(string) *config.CertificateContent
+}
+
+type CertStore interface {
+	Put(string, BuildArtifact) error
+	Get(string) *BuildArtifact
+}
+
 type Database interface {
 	Open() error
 	Close() error

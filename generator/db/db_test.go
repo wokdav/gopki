@@ -250,9 +250,10 @@ func TestValidateMergeExtensions(t *testing.T) {
 	defer db.Close()
 
 	ext := v1.SubjectKeyIdentifier{Content: "hash"}
+	extProf := config.ProfileExtension{ExtensionConfig: ext}
 
 	p := simpleProfile
-	p.Extensions = append(p.Extensions, ext)
+	p.Extensions = append(p.Extensions, extProf)
 	db.AddProfile(p)
 
 	e := simpleEntity

@@ -39,6 +39,8 @@ type AnyExtension struct {
 	*AuthKeyId            `json:"authorityKeyIdentifier"`
 	*ExtKeyUsage          `json:"extendedKeyUsage"`
 	*CustomExtension      `json:"custom"`
+	Optional              bool `json:"optional"`
+	Override              bool `json:"override"`
 }
 
 type ExtensionType int
@@ -66,7 +68,8 @@ func parseExtensions(e []AnyExtension) ([]config.ExtensionConfig, error) {
 			innerStructValPtr := extStructVal.Field(j)
 			innerStructTyp := extStructTyp.Field(j)
 			if innerStructValPtr.Kind() != reflect.Pointer {
-				return nil, fmt.Errorf("field '%v' does not contain a pointer", innerStructTyp.Name)
+				//skip non-pointer fields
+				continue
 			}
 
 			//find first non-nil ptr
@@ -92,7 +95,6 @@ type SubjectKeyIdentifier struct {
 	Raw      string `json:"raw"`
 	Critical bool   `json:"critical"`
 	Content  string `json:"content"`
-	config.ExtensionProfile
 }
 
 func (s SubjectKeyIdentifier) Oid() (asn1.ObjectIdentifier, error) {
@@ -102,19 +104,6 @@ func (s SubjectKeyIdentifier) Oid() (asn1.ObjectIdentifier, error) {
 	}
 
 	return oid, nil
-}
-
-func (s SubjectKeyIdentifier) Profile() config.ExtensionProfile {
-	return config.ExtensionProfile{Optional: s.Optional, Override: s.Override}
-}
-
-func (s SubjectKeyIdentifier) ContentEquals(other config.ExtensionConfig) bool {
-	otherCasted, ok := other.(*SubjectKeyIdentifier)
-	if !ok || otherCasted == nil {
-		return false
-	}
-
-	return otherCasted.Content == s.Content
 }
 
 func (s SubjectKeyIdentifier) Builder() (cert.ExtensionBuilder, error) {
@@ -156,11 +145,6 @@ func (s SubjectKeyIdentifier) Builder() (cert.ExtensionBuilder, error) {
 				return cert.NewSubjectKeyIdentifier(s.Critical, ctx)
 			},
 		}, nil
-	} else if len(s.Content) == 0 {
-		if s.Override {
-			return config.OverrideNeededBuilder{}, nil
-		}
-		return nil, errors.New("config-v1: [subjectKeyId] content empty")
 	}
 
 	return nil, errors.New("config-v1: [subjectKeyId] unable to build extension")
@@ -182,7 +166,6 @@ type KeyUsage struct {
 	Raw      string   `json:"raw"`
 	Critical bool     `json:"critical"`
 	Content  []string `json:"content"`
-	config.ExtensionProfile
 }
 
 func (k KeyUsage) Oid() (asn1.ObjectIdentifier, error) {
@@ -192,19 +175,6 @@ func (k KeyUsage) Oid() (asn1.ObjectIdentifier, error) {
 	}
 
 	return oid, nil
-}
-
-func (k KeyUsage) Profile() config.ExtensionProfile {
-	return config.ExtensionProfile{Optional: k.Optional, Override: k.Override}
-}
-
-func (k KeyUsage) ContentEquals(other config.ExtensionConfig) bool {
-	otherCasted, ok := other.(*KeyUsage)
-	if !ok {
-		return false
-	}
-
-	return reflect.DeepEqual(k.Content, otherCasted.Content)
 }
 
 func (k KeyUsage) Builder() (cert.ExtensionBuilder, error) {
@@ -257,10 +227,6 @@ func (k KeyUsage) Builder() (cert.ExtensionBuilder, error) {
 		}, nil
 	}
 
-	if k.Override {
-		return config.OverrideNeededBuilder{}, nil
-	}
-
 	return nil, fmt.Errorf("config-v1: [keyUsage] neither content nor raw-content is given")
 }
 
@@ -270,7 +236,6 @@ type SubjectAltName struct {
 	Raw      string                 `json:"raw"`
 	Critical bool                   `json:"critical"`
 	Content  []SubjAltNameComponent `json:"content"`
-	config.ExtensionProfile
 }
 
 type SubjAltNameComponent struct {
@@ -285,19 +250,6 @@ func (s SubjectAltName) Oid() (asn1.ObjectIdentifier, error) {
 	}
 
 	return oid, nil
-}
-
-func (s SubjectAltName) Profile() config.ExtensionProfile {
-	return config.ExtensionProfile{Optional: s.Optional, Override: s.Override}
-}
-
-func (s SubjectAltName) ContentEquals(other config.ExtensionConfig) bool {
-	otherCasted, ok := other.(*SubjectAltName)
-	if !ok || otherCasted == nil {
-		return false
-	}
-
-	return reflect.DeepEqual(s.Content, otherCasted.Content)
 }
 
 func (s SubjectAltName) Builder() (cert.ExtensionBuilder, error) {
@@ -326,9 +278,6 @@ func (s SubjectAltName) Builder() (cert.ExtensionBuilder, error) {
 	}
 
 	if s.Content == nil {
-		if s.Override {
-			return config.OverrideNeededBuilder{}, nil
-		}
 		return nil, fmt.Errorf("config-v1: [subjectAlternativeName] neither content nor raw-content is given")
 	}
 
@@ -379,7 +328,6 @@ type BasicConstraints struct {
 	Raw      string               `json:"raw"`
 	Critical bool                 `json:"critical"`
 	Content  *BasicConstraintsObj `json:"content"`
-	config.ExtensionProfile
 }
 
 func (b BasicConstraints) Oid() (asn1.ObjectIdentifier, error) {
@@ -389,19 +337,6 @@ func (b BasicConstraints) Oid() (asn1.ObjectIdentifier, error) {
 	}
 
 	return oid, nil
-}
-
-func (b BasicConstraints) Profile() config.ExtensionProfile {
-	return config.ExtensionProfile{Optional: b.Optional, Override: b.Override}
-}
-
-func (b BasicConstraints) ContentEquals(other config.ExtensionConfig) bool {
-	otherCasted, ok := other.(*BasicConstraints)
-	if !ok || otherCasted == nil {
-		return false
-	}
-
-	return reflect.DeepEqual(b.Content, otherCasted.Content)
 }
 
 func (b BasicConstraints) Builder() (cert.ExtensionBuilder, error) {
@@ -434,10 +369,6 @@ func (b BasicConstraints) Builder() (cert.ExtensionBuilder, error) {
 		}, nil
 	}
 
-	if b.Override {
-		return config.OverrideNeededBuilder{}, nil
-	}
-
 	return nil, errors.New("config-v1: [basicConstraints] neither content nor raw content is given")
 }
 
@@ -463,7 +394,6 @@ type CertPolicies struct {
 	Raw      string       `json:"raw"`
 	Critical bool         `json:"critical"`
 	Content  []CertPolicy `json:"content"`
-	config.ExtensionProfile
 }
 
 func (c CertPolicies) Oid() (asn1.ObjectIdentifier, error) {
@@ -473,19 +403,6 @@ func (c CertPolicies) Oid() (asn1.ObjectIdentifier, error) {
 	}
 
 	return oid, nil
-}
-
-func (c CertPolicies) Profile() config.ExtensionProfile {
-	return config.ExtensionProfile{Optional: c.Optional, Override: c.Override}
-}
-
-func (c CertPolicies) ContentEquals(other config.ExtensionConfig) bool {
-	otherCasted, ok := other.(*CertPolicies)
-	if !ok || otherCasted == nil {
-		return false
-	}
-
-	return reflect.DeepEqual(c.Content, otherCasted.Content)
 }
 
 func (c CertPolicies) Builder() (cert.ExtensionBuilder, error) {
@@ -552,10 +469,6 @@ func (c CertPolicies) Builder() (cert.ExtensionBuilder, error) {
 			return nil, err
 		}
 		return config.ConstantBuilder{Extension: *ext}, nil
-	} else {
-		if c.Override {
-			return config.OverrideNeededBuilder{}, nil
-		}
 	}
 
 	return nil, fmt.Errorf("config-v1: [certPolicies] neither content nor raw-content is given")
@@ -571,7 +484,6 @@ type AuthInfoAccess struct {
 	Raw      string           `json:"raw"`
 	Critical bool             `json:"critical"`
 	Content  []SingleAuthInfo `json:"content"`
-	config.ExtensionProfile
 }
 
 func (a AuthInfoAccess) Oid() (asn1.ObjectIdentifier, error) {
@@ -581,19 +493,6 @@ func (a AuthInfoAccess) Oid() (asn1.ObjectIdentifier, error) {
 	}
 
 	return oid, nil
-}
-
-func (a AuthInfoAccess) Profile() config.ExtensionProfile {
-	return config.ExtensionProfile{Optional: a.Optional, Override: a.Override}
-}
-
-func (a AuthInfoAccess) ContentEquals(other config.ExtensionConfig) bool {
-	otherCasted, ok := other.(*AuthInfoAccess)
-	if !ok || otherCasted == nil {
-		return false
-	}
-
-	return reflect.DeepEqual(a.Content, otherCasted.Content)
 }
 
 func (a AuthInfoAccess) Builder() (cert.ExtensionBuilder, error) {
@@ -637,13 +536,9 @@ func (a AuthInfoAccess) Builder() (cert.ExtensionBuilder, error) {
 		}
 
 		return config.ConstantBuilder{Extension: *ext}, nil
-	} else {
-		if a.Override {
-			return config.OverrideNeededBuilder{}, nil
-		}
-
-		return nil, fmt.Errorf("config-v1: [authorityInfoAccess] neither content nor raw-content is given")
 	}
+
+	return nil, fmt.Errorf("config-v1: [authorityInfoAccess] neither content nor raw-content is given")
 }
 
 type AuthKeyIdContent struct {
@@ -656,7 +551,6 @@ type AuthKeyId struct {
 	Raw      string           `json:"raw"`
 	Critical bool             `json:"critical"`
 	Content  AuthKeyIdContent `json:"content"`
-	config.ExtensionProfile
 }
 
 func (a AuthKeyId) Oid() (asn1.ObjectIdentifier, error) {
@@ -666,19 +560,6 @@ func (a AuthKeyId) Oid() (asn1.ObjectIdentifier, error) {
 	}
 
 	return oid, nil
-}
-
-func (a AuthKeyId) Profile() config.ExtensionProfile {
-	return config.ExtensionProfile{Optional: a.Optional, Override: a.Override}
-}
-
-func (a AuthKeyId) ContentEquals(other config.ExtensionConfig) bool {
-	otherCasted, ok := other.(*AuthKeyId)
-	if !ok || otherCasted == nil {
-		return false
-	}
-
-	return reflect.DeepEqual(a.Content, otherCasted.Content)
 }
 
 func (a AuthKeyId) Builder() (cert.ExtensionBuilder, error) {
@@ -734,13 +615,9 @@ func (a AuthKeyId) Builder() (cert.ExtensionBuilder, error) {
 		} else {
 			return nil, fmt.Errorf("config-v1: [authKeyId] illegal id: %v", a.Content.Id)
 		}
-	} else {
-		if a.Override {
-			return config.OverrideNeededBuilder{}, nil
-		}
-
-		return nil, fmt.Errorf("config-v1: [authKeyId] neither content nor raw-content is given")
 	}
+
+	return nil, fmt.Errorf("config-v1: [authKeyId] neither content nor raw-content is given")
 }
 
 // JSON/YAML representation for this extension.
@@ -749,7 +626,6 @@ type ExtKeyUsage struct {
 	Raw      string   `json:"raw"`
 	Critical bool     `json:"critical"`
 	Content  []string `json:"content"`
-	config.ExtensionProfile
 }
 
 const (
@@ -768,19 +644,6 @@ func (e ExtKeyUsage) Oid() (asn1.ObjectIdentifier, error) {
 	}
 
 	return oid, nil
-}
-
-func (e ExtKeyUsage) Profile() config.ExtensionProfile {
-	return config.ExtensionProfile{Optional: e.Optional, Override: e.Override}
-}
-
-func (e ExtKeyUsage) ContentEquals(other config.ExtensionConfig) bool {
-	otherCasted, ok := other.(*ExtKeyUsage)
-	if !ok || otherCasted == nil {
-		return false
-	}
-
-	return reflect.DeepEqual(e.Content, otherCasted.Content)
 }
 
 func extKeyUsageOid(s string) (asn1.ObjectIdentifier, error) {
@@ -848,13 +711,9 @@ func (e ExtKeyUsage) Builder() (cert.ExtensionBuilder, error) {
 		}
 
 		return config.ConstantBuilder{Extension: *ext}, nil
-	} else {
-		if e.Override {
-			return config.OverrideNeededBuilder{}, nil
-		}
-
-		return nil, fmt.Errorf("config-v1: [extendedKeyUsage] neither content nor raw-content is given")
 	}
+
+	return nil, fmt.Errorf("config-v1: [extendedKeyUsage] neither content nor raw-content is given")
 }
 
 // JSON/YAML representation for this custom extensions.
@@ -863,24 +722,10 @@ type CustomExtension struct {
 	OidStr   string `json:"oid"`
 	Raw      string `json:"raw"`
 	Critical bool   `json:"critical"`
-	config.ExtensionProfile
 }
 
 func (c CustomExtension) Oid() (asn1.ObjectIdentifier, error) {
 	return cert.OidFromString(c.OidStr)
-}
-
-func (c CustomExtension) Profile() config.ExtensionProfile {
-	return config.ExtensionProfile{Optional: c.Optional, Override: c.Override}
-}
-
-func (c CustomExtension) ContentEquals(other config.ExtensionConfig) bool {
-	otherCasted, ok := other.(*CustomExtension)
-	if !ok {
-		return false
-	}
-
-	return c.OidStr == otherCasted.OidStr && c.Raw == otherCasted.Raw
 }
 
 func (c CustomExtension) Builder() (cert.ExtensionBuilder, error) {
@@ -901,13 +746,9 @@ func (c CustomExtension) Builder() (cert.ExtensionBuilder, error) {
 				Value:    b,
 			},
 		}, nil
-	} else {
-		if c.Override {
-			return config.OverrideNeededBuilder{}, nil
-		}
-
-		return nil, fmt.Errorf("config-v1: [customExtension] raw-content not given")
 	}
+
+	return nil, fmt.Errorf("config-v1: [customExtension] raw-content not given")
 }
 
 func readRawString(s string) ([]byte, error) {
