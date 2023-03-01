@@ -7,9 +7,9 @@
 package nistec
 
 import (
-	"github.com/wokdav/gopki/generator/dcrypto/internal/nistec/fiat"
 	"crypto/subtle"
 	"errors"
+	"github.com/wokdav/gopki/generator/dcrypto/internal/nistec/fiat"
 	"sync"
 )
 
