@@ -27,6 +27,9 @@ import (
 	"strings"
 	"time"
 
+	deterministicEcdsa "github.com/wokdav/gopki/generator/dcrypto/ecdsa"
+	deterministicRsa "github.com/wokdav/gopki/generator/dcrypto/rsa"
+
 	"github.com/keybase/go-crypto/brainpool"
 )
 
@@ -77,6 +80,7 @@ type IssuerContext struct {
 // This includes the entities' private key, certificate data
 // and issuer information.
 type CertificateContext struct {
+	random *rand.Rand
 	*TbsCertificate
 	crypto.PrivateKey
 	Issuer     *IssuerContext
@@ -440,7 +444,7 @@ func (ctx *CertificateContext) GeneratePrivateKey(keyAlg KeyAlgorithm) error {
 			return fmt.Errorf("cert: incompatible key algorithm for RSA: %v", keyAlg)
 		}
 
-		prkTmp, err = rsa.GenerateKey(defaultRandom, bitSize)
+		prkTmp, err = deterministicRsa.GenerateKey(ctx.random, bitSize)
 		if err != nil {
 			return err
 		}
@@ -456,7 +460,7 @@ func (ctx *CertificateContext) GeneratePrivateKey(keyAlg KeyAlgorithm) error {
 			return fmt.Errorf("cert: unknown ec key algorithm identifier: %v", keyAlg)
 		}
 
-		prkTmp, err = ecdsa.GenerateKey(curve, defaultRandom)
+		prkTmp, err = deterministicEcdsa.GenerateKey(curve, ctx.random)
 		if err != nil {
 			return err
 		}
@@ -478,10 +482,16 @@ func (ctx *CertificateContext) GeneratePrivateKey(keyAlg KeyAlgorithm) error {
 // - The alias is set to a hexadecimal representation of the serial number
 // - Time values are converted to UTC
 // - The extensions will be generated after calling the [cert.Sign] function
-func NewCertificateContext(subject pkix.RDNSequence, ext []ExtensionBuilder, validNotBefore time.Time, validNotAfter time.Time) *CertificateContext {
+func NewCertificateContext(subject pkix.RDNSequence, ext []ExtensionBuilder, validNotBefore time.Time, validNotAfter time.Time, seed *int64) *CertificateContext {
 	tbs := TbsCertificate{}
+
+	random := defaultRandom
+	if seed != nil {
+		random = rand.New(rand.NewSource(*seed))
+	}
+
 	tbs.Version = 2
-	tbs.SerialNumber = new(big.Int).Rand(defaultRandom, snMax)
+	tbs.SerialNumber = new(big.Int).Rand(random, snMax)
 
 	tbs.Validity.NotBefore = validNotBefore.UTC()
 	tbs.Validity.NotAfter = validNotAfter.UTC()
@@ -492,7 +502,7 @@ func NewCertificateContext(subject pkix.RDNSequence, ext []ExtensionBuilder, val
 	}
 
 	tbs.Issuer = tbs.Subject
-	ctx := CertificateContext{&tbs, nil, &IssuerContext{
+	ctx := CertificateContext{random, &tbs, nil, &IssuerContext{
 		PrivateKey:   nil,
 		PublicKeyRaw: tbs.PublicKey.PublicKey.Bytes,
 		IssuerDn:     tbs.Subject,
@@ -615,7 +625,7 @@ func (c *CertificateContext) Sign(alg SignatureAlgorithm) (*Certificate, error) 
 			return nil, errors.New("cert: provided key is not ECDSA compatible")
 		}
 
-		signature, err = ecdsa.SignASN1(defaultRandom, ecdsaPrk, digest)
+		signature, err = deterministicEcdsa.SignASN1(c.random, ecdsaPrk, digest)
 		if err != nil {
 			return nil, err
 		}
@@ -625,7 +635,7 @@ func (c *CertificateContext) Sign(alg SignatureAlgorithm) (*Certificate, error) 
 			return nil, errors.New("cert: provided key is not RSA compatible")
 		}
 
-		signature, err = rsa.SignPKCS1v15(defaultRandom, rsaPrk, hashAlgId, digest)
+		signature, err = deterministicRsa.SignPKCS1v15(c.random, rsaPrk, hashAlgId, digest)
 		if err != nil {
 			return nil, err
 		}

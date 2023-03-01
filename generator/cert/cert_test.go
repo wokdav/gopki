@@ -23,7 +23,7 @@ func init() {
 }
 
 func getQuickCert() *CertificateContext {
-	out := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
+	out := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration), nil)
 	out.GeneratePrivateKey(P224)
 	out.SetIssuer(AsIssuer(*out))
 
@@ -154,7 +154,7 @@ func TestUnknownKeyAlg(t *testing.T) {
 }
 
 func TestUnknownIncompatibleECKeySign(t *testing.T) {
-	ctx := NewCertificateContext(defaultSubject, nil, time.Now(), time.Now().Add(testduration))
+	ctx := NewCertificateContext(defaultSubject, nil, time.Now(), time.Now().Add(testduration), nil)
 	err := ctx.GeneratePrivateKey(P224)
 	if err != nil {
 		t.Fatalf("can't generate key: %v", err)
@@ -167,7 +167,7 @@ func TestUnknownIncompatibleECKeySign(t *testing.T) {
 }
 
 func TestUnknownIncompatibleRSAKeySign(t *testing.T) {
-	ctx := NewCertificateContext(defaultSubject, nil, time.Now(), time.Now().Add(testduration))
+	ctx := NewCertificateContext(defaultSubject, nil, time.Now(), time.Now().Add(testduration), nil)
 	err := ctx.GeneratePrivateKey(RSA1024)
 	if err != nil {
 		t.Fatalf("can't generate certificate body: %v", err)
@@ -208,7 +208,7 @@ func TestAlgorithms(t *testing.T) {
 			if testing.Short() && !test.isShort {
 				t.Skip()
 			}
-			ctx := NewCertificateContext(defaultSubject, nil, time.Now(), time.Now().Add(testduration))
+			ctx := NewCertificateContext(defaultSubject, nil, time.Now(), time.Now().Add(testduration), nil)
 			err := ctx.GeneratePrivateKey(test.keyAlg)
 			if err != nil {
 				t.Errorf("can't create certificate body for %v+%v", test.keyAlg, test.sigAlg)
@@ -381,7 +381,7 @@ func TestImportWrongKeyType(t *testing.T) {
 func TestAsIssuer(t *testing.T) {
 	subject := defaultSubject
 	ctx := NewCertificateContext(
-		subject, nil, time.Now(), time.Now().AddDate(1, 0, 0))
+		subject, nil, time.Now(), time.Now().AddDate(1, 0, 0), nil)
 
 	err := ctx.GeneratePrivateKey(P224)
 	if err != nil {

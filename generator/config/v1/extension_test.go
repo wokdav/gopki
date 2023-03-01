@@ -29,7 +29,7 @@ func init() {
 		panic("tests are broken")
 	}
 	simpleCertContext = cert.NewCertificateContext(
-		nil, nil, time.Now(), time.Now().Add(testduration))
+		nil, nil, time.Now(), time.Now().Add(testduration), nil)
 	err = simpleCertContext.GeneratePrivateKey(cert.P224)
 	if err != nil {
 		panic("tests are broken")

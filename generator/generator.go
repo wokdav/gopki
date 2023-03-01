@@ -8,11 +8,14 @@ package generator
 
 import (
 	"crypto"
+	"hash/crc32"
 
 	"github.com/wokdav/gopki/generator/cert"
 	"github.com/wokdav/gopki/generator/config"
 	"github.com/wokdav/gopki/logging"
 )
+
+//TODO: collect certificates and configs concurrently via channels
 
 // Returns a [cert.CertificateContext] that corresponds to the supplied
 // [config.CertificateContent]. This entails calling the Builder() function
@@ -29,8 +32,12 @@ func BuildCertBody(c config.CertificateContent, prk crypto.PrivateKey) (*cert.Ce
 			return nil, err
 		}
 	}
+
+	//calculate crc32 of alias and put it into seed
+	seed := int64(crc32.ChecksumIEEE([]byte(c.Alias + c.Subject.String())))
+
 	ctx := cert.NewCertificateContext(c.Subject, extBuild,
-		c.ValidFrom, c.ValidUntil)
+		c.ValidFrom, c.ValidUntil, &seed)
 
 	if prk == nil {
 		err = ctx.GeneratePrivateKey(c.KeyAlgorithm)
