@@ -15,7 +15,11 @@ import (
 	"github.com/wokdav/gopki/logging"
 )
 
+//TODO: add manipulation for other certificate fields (e.g. serial number)
+//TODO: add support for CSRs
 //TODO: collect certificates and configs concurrently via channels
+//TODO: either fix cross-platform determinism or drop it altogether
+//TODO: pkcs12 export
 
 // Returns a [cert.CertificateContext] that corresponds to the supplied
 // [config.CertificateContent]. This entails calling the Builder() function
