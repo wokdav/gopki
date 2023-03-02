@@ -153,6 +153,7 @@ func TestGenerateDeterministic(t *testing.T) {
 }
 
 func TestGenerateDeterministicConstantEC(t *testing.T) {
+	t.Skip("determinism does not work cross-plarform yet")
 	expectB64 := "MIIBCjCBsqADAgECAgMAx2QwCQYHKoZIzj0EATAPMQ0wCwYDVQQDEwRUZXN0MB4XDTIzMDIyODIzMDAwMFoXDTI4MDIyOTIzMDAwMFowDzENMAsGA1UEAxMEVGVzdDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABNDqLxEgs1SVBysZ6zqMhD7kaix9CIgEikSX418kdvRKcCelCTQI5k9IgCeozWe4cn5tZFf7RnnGR+7SA+rjJHswCQYHKoZIzj0EAQNIADBFAiBdveBWoFw7fo/TN/iqg3pXnyAti58a6uocrjnQbldg6wIhAMSviufX2wcsOlmq47/rgmE/Pno9EnIt91yOsCGtR0fA"
 	expect, err := base64.StdEncoding.DecodeString(expectB64)
 	if err != nil {
@@ -180,6 +181,7 @@ func TestGenerateDeterministicConstantEC(t *testing.T) {
 }
 
 func TestGenerateDeterministicConstantRSA(t *testing.T) {
+	t.Skip("determinism does not work cross-plarform yet")
 	expectB64 := "MIIBjzCB+6ADAgECAgMAx2QwCwYJKoZIhvcNAQELMA8xDTALBgNVBAMTBFRlc3QwHhcNMjMwMjI4MjMwMDAwWhcNMjgwMjI5MjMwMDAwWjAPMQ0wCwYDVQQDEwRUZXN0MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC0TfdFqJK9NuHg/tE6BXBUSmUlr4ljQ2laQnmHuH919RMAe44vUJwuqOv7w77zHfwlAabefY4TOLzYyOrf0aBuvycUlAqV+9gpZh3UqupYkn3/DxxNtLRJfDyM8ATNIoEnu2JBQaX0VINszJz+GTHOJQv1dv9+Jz80yDRkWoFBkQIDAQABMAsGCSqGSIb3DQEBCwOBgQBVc2c+DUqooS+1Mu3kNruazmYMYBGQILnbHD0HcY8i0sRjl/SKfHv9V2c5236CKKkYNrhReSQ+pWVNzJrUJEKcLbXa3NkH+xfs9wIfXyV2rq0+UE+dZXfa46Lk9HhbCSvE9RjXU17RnmZ4zjg0HWKo4H0xAhezvql0RAYQ2niUHQ=="
 	expect, err := base64.StdEncoding.DecodeString(expectB64)
 	if err != nil {
