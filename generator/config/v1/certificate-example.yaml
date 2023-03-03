@@ -106,7 +106,7 @@ validity:
 # note that this is a list where each element contains exactly one extension
 # definition.
 #
-# each content has a "critical" property, which is set to false by default.
+# each extension has a "critical" property, which is set to false by default.
 #
 # an extension's content may either be defined through it's "content" attribute, which
 # differs depending on what certificate it is OR through a "raw" attribute,
