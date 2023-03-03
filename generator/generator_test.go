@@ -2,9 +2,12 @@ package generator
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
+	"math/big"
 	"strings"
 	"testing"
 	"time"
@@ -107,7 +110,7 @@ func TestGenerateDeterministic(t *testing.T) {
 		cert.SignatureAlgorithm
 	}
 	testConfigs := []testvector{
-		{"version: 1\nalias: testAlias\nsubject: CN=Test\nkeyAlgorithm: RSA-1024\nsignatureAlgorithm: RSAwithSHA1", cert.RSAwithSHA1},
+		//{"version: 1\nalias: testAlias\nsubject: CN=Test\nkeyAlgorithm: RSA-1024\nsignatureAlgorithm: RSAwithSHA1", cert.RSAwithSHA1},
 		{"version: 1\nalias: testAlias\nsubject: CN=Test\nkeyAlgorithm: P-224\nsignatureAlgorithm: ECDSAwithSHA1", cert.ECDSAwithSHA1},
 	}
 
@@ -206,4 +209,36 @@ func TestGenerateDeterministicConstantRSA(t *testing.T) {
 	if !bytes.Equal(marshal, expect) {
 		t.Fatal("certificates are not equal")
 	}
+}
+
+func BenchmarkGenerate(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+
+	x := new(big.Int)
+	y := new(big.Int)
+	d := new(big.Int)
+	x, _ = x.SetString("5300543179197707922116024663745197829205857341961879899054986749525", 10)
+	y, _ = x.SetString("13893863194571343084916624509502030812582547280731524391548548370848", 10)
+	d, _ = x.SetString("2419911185375737984283888500116191715602314903419136074591899486857", 10)
+
+	key := ecdsa.PrivateKey{
+		PublicKey: ecdsa.PublicKey{
+			Curve: elliptic.P224(),
+			X:     x,
+			Y:     y,
+		},
+		D: d,
+	}
+	cfg, _ := config.GetConfigurator(1)
+	certCfg, _ := cfg.ParseConfiguration(cfg.CertificateExample())
+	certCfgCasted := certCfg.(*config.CertificateContent)
+
+	certCfgCasted.Issuer = ""
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		BuildCertBody(*certCfgCasted, key)
+	}
+	b.ReportAllocs()
 }

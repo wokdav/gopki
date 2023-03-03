@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/pem"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -1023,4 +1024,27 @@ func TestGenerateExpiredExplicitFuture(t *testing.T) {
 	if strings.Contains(string(newPem), expiredCert) {
 		t.Fatal("expected certificate to change")
 	}
+}
+
+func BenchmarkManyFiles(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+	logging.Initialize(logging.LevelNone, nil, nil)
+	fsmap := make(map[string]string)
+	for i := 0; i < b.N; i++ {
+		fsmap[fmt.Sprintf("%v.yml", i)] = fmt.Sprintf("version: 1\nsubject: CN=TestRoot%v", i)
+		fsmap[fmt.Sprintf("%v.key", i)] = testrootkey  //avoid key generation
+		fsmap[fmt.Sprintf("%v.pem", i)] = testrootcert //avoid cert generation
+	}
+
+	testfs := NewFilesystemDatabase(getTestFs(fsmap))
+
+	b.StartTimer()
+	_, err := quickUpdate(testfs, db.UpdateExpired)
+	if err != nil {
+		b.Fatal(err.Error())
+	}
+	b.StopTimer()
+
+	b.ReportAllocs()
 }
