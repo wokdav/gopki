@@ -471,3 +471,96 @@ func TestAuthKeyHashKeyId(t *testing.T) {
 		t.Fatalf("byte array does not conform: %v", hex.EncodeToString(ext.Value))
 	}
 }
+
+func TestAdmission(t *testing.T) {
+	admission := Admission{
+		AdmissionAuthority: GeneralNameURI("http://example.com"),
+		Contents: []Admissions{
+			{
+				AdmissionAuthority: GeneralNameURI("http://example.com"),
+				NamingAuthority: NamingAuthority{
+					Oid:  asn1.ObjectIdentifier{1, 2, 3, 4},
+					Text: "text",
+					URL:  "http://example.com",
+				},
+				ProfessionInfos: []ProfessionInfo{
+					{
+						NamingAuthority: NamingAuthority{
+							Oid:  asn1.ObjectIdentifier{1, 2, 3, 4},
+							URL:  "http://example.com",
+							Text: "text",
+						},
+						ProfessionItems: []string{"item1", "item2"},
+						ProfessionOids: []asn1.ObjectIdentifier{
+							{1, 2, 3, 4}, {1, 2, 3, 4},
+						},
+						RegistrationNumber: "684351",
+						AddProfessionInfo:  []byte{0xFF, 0xFF, 0xFF, 0xFF},
+					},
+				},
+			},
+		},
+	}
+
+	ext, err := NewAdmission(false, admission)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if !ext.Id.Equal(oidExtensionAdmission) {
+		t.Fatalf("wrong extension oid: %#v", ext.Id)
+	}
+	if ext.Critical {
+		t.Fatal("extension should not be critical")
+	}
+
+	t.Log(hex.EncodeToString(ext.Value))
+}
+
+func TestAdmissionFromProfessionItems(t *testing.T) {
+	ext, err := NewAdmissionFromProfessionItems(false,
+		[]string{"item1", "item2"},
+		[]asn1.ObjectIdentifier{{1, 2, 3, 4}, {1, 2, 3, 5}},
+		"684351",
+	)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if !ext.Id.Equal(oidExtensionAdmission) {
+		t.Fatalf("wrong extension oid: %#v", ext.Id)
+	}
+	if ext.Critical {
+		t.Fatal("extension should not be critical")
+	}
+	t.Log(hex.EncodeToString(ext.Value))
+}
+
+func TestBugAdmissionFromProfessionItemsNoEmpty(t *testing.T) {
+	ext, err := NewAdmissionFromProfessionItems(false,
+		[]string{"item1", "item2"},
+		[]asn1.ObjectIdentifier{{1, 2, 3, 4}, {1, 2, 3, 5}},
+		"",
+	)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if ext.Value[2] == 0x00 {
+		t.Error("first authority string is empty. should be omitted")
+	}
+
+	if ext.Value[9] == 0x00 {
+		t.Error("second authority string is empty. should be omitted")
+	}
+
+	if ext.Value[len(ext.Value)-1] == 0x00 {
+		t.Error("empty string at the end detected. should be omitted")
+	}
+}
+
+func TestEmptyAdmissions(t *testing.T) {
+	//should not panic as well
+	_, err := NewAdmission(false, Admission{})
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+}

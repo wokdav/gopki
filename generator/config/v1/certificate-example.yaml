@@ -126,6 +126,9 @@ validity:
 # the list below specifies every extension recognized by gopki:
 # (optional)
 extensions:
+    #######################
+    # RFC 5280 Extensions #
+    #######################
     - subjectKeyIdentifier:
         # "hash" will use a hash of the key as the identifier.
         # the !binary form is also allowed here to set the id manually.
@@ -195,6 +198,49 @@ extensions:
           - emailProtection
           - timeStamping
           - OCSPSigning
+    #####################################################################################
+    # CommonPKI Extensions                                                              #
+    # It is discontinued, but still used in some enterprise and government applications #
+    #####################################################################################
+    - admission:
+        content:
+            # all properties are optional. according to spec, the only
+            # non-optional property is "professionItems", but this will not
+            # be enforced. So theoretically, you could have an empty admission
+            # extension.
+            admissionAuthority:
+                # for a list of valid name types, see subjectAlternativeName
+                type: dns
+                name: www.myadmissionAuthority.org
+            admissions:
+                - admissionAuthority:
+                      # for a list of valid name types, see subjectAlternativeName
+                      type: mail
+                      name: theauthority@bla.org
+                  namingAuthority:
+                      # any of these or a combination is fine
+                      url: 'http://example.org'
+                      # oid: 1.1.1
+                      # text: my-naming-authority
+                  professionInfos:
+                    - namingAuthorities:
+                        # this is a list of naming authorities that have
+                        # the same properties as admissions.namingAuthority
+                        - oid: 1.2.3.4
+                          # url: www.naming.auth
+                          # text: another one
+                      professionItems:
+                        # in practice, each profession is supposed to match a professionOid.
+                        # this, however, is not enforced
+                        - Profession1
+                        - Profession2
+                      professionOids:
+                        - 1.2.3.8
+                        - 1.2.3.9
+                      # despite being called number, its a string
+                      registrationNumber: 1-2-3-4-5
+                      # addProfessionInfo must be a binary
+                      addProfessionInfo: '!binary:AQIDBA=='
     - custom:
         # define your own extension
         oid: 1.12.12.4.5

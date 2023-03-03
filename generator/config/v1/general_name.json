@@ -1,0 +1,18 @@
+{
+    "$id": "general_name.json",
+    "type": "object",
+    "properties": {
+        "type": {
+            "enum": [
+                "ip",
+                "dns",
+                "mail",
+                "url"
+            ]
+        },
+        "name": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}
