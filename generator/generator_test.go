@@ -29,7 +29,23 @@ func init() {
 	}
 }
 
-func certFromConfig(s string) (*cert.CertificateContext, error) {
+func contextFromConfig(s string) (*cert.CertificateContext, error) {
+	cfg, err := config.ParseConfig(strings.NewReader(s))
+	if err != nil {
+		return nil, err
+	}
+
+	certCfg := cfg.(*config.CertificateContent)
+
+	ctx, err := BuildCertBody(*certCfg, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return ctx, nil
+}
+
+func certFromConfig(s string) (*cert.Certificate, error) {
 	cfg, err := config.ParseConfig(strings.NewReader(s))
 	if err != nil {
 		return nil, err
@@ -42,11 +58,11 @@ func certFromConfig(s string) (*cert.CertificateContext, error) {
 		return nil, err
 	}
 
-	return cert, nil
+	return SignCertBody(cert, *certCfg)
 }
 
 func TestGenerateMinimal(t *testing.T) {
-	cert, err := certFromConfig("version: 1\nsubject: C=DE, CN=MyCertificate")
+	cert, err := contextFromConfig("version: 1\nsubject: C=DE, CN=MyCertificate")
 	if err != nil || cert == nil {
 		t.Fatalf("error happened (%v) or cert is null", err)
 	}
@@ -60,7 +76,7 @@ func TestGenerateMinimal(t *testing.T) {
 }
 
 func TestGenerateExtensions(t *testing.T) {
-	cert, err := certFromConfig("version: 1\nsubject: CN=Test\nextensions:\n  - subjectKeyIdentifier:\n      content: hash\n")
+	cert, err := contextFromConfig("version: 1\nsubject: CN=Test\nextensions:\n  - subjectKeyIdentifier:\n      content: hash\n")
 	if err != nil || cert == nil {
 		t.Fatalf("error happened (%v) or cert is null", err)
 	}
@@ -117,12 +133,12 @@ func TestGenerateDeterministic(t *testing.T) {
 
 	for _, test := range testConfigs {
 		t.Run(test.string, func(t *testing.T) {
-			cert1, err := certFromConfig(test.string)
+			cert1, err := contextFromConfig(test.string)
 			if err != nil || cert1 == nil {
 				t.Fatalf("error happened (%v) or cert is null", err)
 			}
 
-			cert2, err := certFromConfig(test.string)
+			cert2, err := contextFromConfig(test.string)
 			if err != nil || cert2 == nil {
 				t.Fatalf("error happened (%v) or cert is null", err)
 			}
@@ -164,7 +180,7 @@ func TestGenerateDeterministicConstantEC(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	cer, err := certFromConfig("version: 1\nalias: testAlias\nsubject: CN=Test\nkeyAlgorithm: P-256\nsignatureAlgorithm: ECDSAwithSHA256")
+	cer, err := contextFromConfig("version: 1\nalias: testAlias\nsubject: CN=Test\nkeyAlgorithm: P-256\nsignatureAlgorithm: ECDSAwithSHA256")
 	if err != nil {
 		t.Fatalf("error happened (%v) or cert is null", err)
 	}
@@ -192,7 +208,7 @@ func TestGenerateDeterministicConstantRSA(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	cer, err := certFromConfig("version: 1\nalias: testAlias\nsubject: CN=Test\nkeyAlgorithm: RSA-1024\nsignatureAlgorithm: RSAwithSHA256")
+	cer, err := contextFromConfig("version: 1\nalias: testAlias\nsubject: CN=Test\nkeyAlgorithm: RSA-1024\nsignatureAlgorithm: RSAwithSHA256")
 	if err != nil {
 		t.Fatalf("error happened (%v) or cert is null", err)
 	}
@@ -214,7 +230,7 @@ func TestGenerateDeterministicConstantRSA(t *testing.T) {
 
 func TestWithSerialNumber(t *testing.T) {
 	var serial int64 = 112233445566778899
-	cert, err := certFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nserialNumber: %d", serial))
+	cert, err := contextFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nserialNumber: %d", serial))
 	if err != nil || cert == nil {
 		t.Fatalf("error happened (%v) or cert is null", err)
 	}
@@ -226,7 +242,7 @@ func TestWithSerialNumber(t *testing.T) {
 
 func TestWithIssuerUniqueId(t *testing.T) {
 	uid := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
-	cert, err := certFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nissuerUniqueId: \"!binary:%v\"", base64.StdEncoding.EncodeToString(uid)))
+	cert, err := contextFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nissuerUniqueId: \"!binary:%v\"", base64.StdEncoding.EncodeToString(uid)))
 	if err != nil || cert == nil {
 		t.Fatalf("error happened (%v) or cert is null", err)
 	}
@@ -238,7 +254,7 @@ func TestWithIssuerUniqueId(t *testing.T) {
 
 func TestWithSubjectUniqueId(t *testing.T) {
 	uid := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
-	cert, err := certFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nsubjectUniqueId: \"!binary:%v\"", base64.StdEncoding.EncodeToString(uid)))
+	cert, err := contextFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nsubjectUniqueId: \"!binary:%v\"", base64.StdEncoding.EncodeToString(uid)))
 	if err != nil || cert == nil {
 		t.Fatalf("error happened (%v) or cert is null", err)
 	}
@@ -279,4 +295,76 @@ func BenchmarkGenerate(b *testing.B) {
 		BuildCertBody(*certCfgCasted, key)
 	}
 	b.ReportAllocs()
+}
+
+func TestManipulateVersion(t *testing.T) {
+	version := 99
+	cert, err := certFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nmanipulations:\n  .version: %d", version))
+	if err != nil || cert == nil {
+		t.Fatalf("error happened (%v) or cert is null", err)
+	}
+
+	if cert.TBSCertificate.Version != version {
+		t.Fatalf("version is not equal: %d != %d", cert.TBSCertificate.Version, version)
+	}
+}
+
+func TestManipulateSigAlg(t *testing.T) {
+	algId := asn1.ObjectIdentifier{1, 2, 3, 4, 5, 6, 7, 8, 9}
+	cert, err := certFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nmanipulations:\n  .signatureAlgorithm: %s", algId.String()))
+	if err != nil || cert == nil {
+		t.Fatalf("error happened (%v) or cert is null", err)
+	}
+
+	if !cert.SignatureAlgorithm.Algorithm.Equal(algId) {
+		t.Fatalf("signatureAlgorithm is not equal: %v != %v", cert.SignatureAlgorithm.Algorithm, algId)
+	}
+}
+
+func TestManipulateSigValue(t *testing.T) {
+	sigVal := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	cert, err := certFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nmanipulations:\n  .signatureValue: \"!binary:%s\"", base64.StdEncoding.EncodeToString(sigVal)))
+	if err != nil || cert == nil {
+		t.Fatalf("error happened (%v) or cert is null", err)
+	}
+
+	if !bytes.Equal(cert.SignatureValue.Bytes, sigVal) {
+		t.Fatalf("signatureValue is not equal: %v != %v", cert.SignatureValue.Bytes, sigVal)
+	}
+}
+
+func TestManipulateInnerSigAlg(t *testing.T) {
+	algId := asn1.ObjectIdentifier{1, 2, 3, 4, 5, 6, 7, 8, 9}
+	cert, err := certFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nmanipulations:\n  .tbs.signature: %s", algId.String()))
+	if err != nil || cert == nil {
+		t.Fatalf("error happened (%v) or cert is null", err)
+	}
+
+	if !cert.TBSCertificate.SignatureAlgorithm.Algorithm.Equal(algId) {
+		t.Fatalf("signatureAlgorithm is not equal: %v != %v", cert.TBSCertificate.SignatureAlgorithm.Algorithm, algId)
+	}
+}
+
+func TestManipulatePubKeyAlg(t *testing.T) {
+	algId := asn1.ObjectIdentifier{1, 2, 3, 4, 5, 6, 7, 8, 9}
+	cert, err := certFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nmanipulations:\n  .tbs.subjectPublicKey.algorithm: %s", algId.String()))
+	if err != nil || cert == nil {
+		t.Fatalf("error happened (%v) or cert is null", err)
+	}
+
+	if !cert.TBSCertificate.PublicKey.Algorithm.Algorithm.Equal(algId) {
+		t.Fatalf("publicKeyAlgorithm is not equal: %v != %v", cert.TBSCertificate.PublicKey.Algorithm.Algorithm, algId)
+	}
+}
+
+func TestManipulatePubKey(t *testing.T) {
+	pubKey := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	cert, err := certFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nmanipulations:\n  .tbs.subjectPublicKey.subjectPublicKey: \"!binary:%s\"", base64.StdEncoding.EncodeToString(pubKey)))
+	if err != nil || cert == nil {
+		t.Fatalf("error happened (%v) or cert is null", err)
+	}
+
+	if !bytes.Equal(cert.TBSCertificate.PublicKey.PublicKey.Bytes, pubKey) {
+		t.Fatalf("publicKey is not equal: %v != %v", cert.TBSCertificate.PublicKey.PublicKey.Bytes, pubKey)
+	}
 }

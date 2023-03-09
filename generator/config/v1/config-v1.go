@@ -8,6 +8,8 @@ package v1
 
 import (
 	"bytes"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -68,6 +70,72 @@ type CertConfig struct {
 	KeyAlgorithm       string         `json:"keyAlgorithm"`
 	SignatureAlgorithm string         `json:"signatureAlgorithm"`
 	Extensions         []AnyExtension `json:"extensions"`
+	Manipulations      Manipulations  `json:"manipulations"`
+}
+
+type Manipulations struct {
+	Version      *int   `json:".version"`
+	OuterSigAlg  string `json:".signatureAlgorithm"`
+	SigValue     string `json:".signatureValue"`
+	TbsSig       string `json:".tbs.signature"`
+	TbsPubKeyAlg string `json:".tbs.subjectPublicKey.algorithm"`
+	TbsPubKey    string `json:".tbs.subjectPublicKey.subjectPublicKey"`
+}
+
+func (m Manipulations) Apply(c *config.CertificateContent) error {
+	//manipulations
+	if m.Version != nil {
+		c.Manipulations.Version = m.Version
+	}
+	if m.OuterSigAlg != "" {
+		oid, err := cert.OidFromString(m.OuterSigAlg)
+		if err != nil {
+			return err
+		}
+		c.Manipulations.SignatureAlgorithm = &pkix.AlgorithmIdentifier{
+			Algorithm: oid,
+		}
+	}
+	if m.SigValue != "" {
+		b, err := readRawString(m.SigValue)
+		if err != nil {
+			return err
+		}
+		c.Manipulations.SignatureValue = &asn1.BitString{
+			Bytes:     b,
+			BitLength: len(b) * 8,
+		}
+	}
+	if m.TbsSig != "" {
+		oid, err := cert.OidFromString(m.TbsSig)
+		if err != nil {
+			return err
+		}
+		c.Manipulations.TbsSignature = &pkix.AlgorithmIdentifier{
+			Algorithm: oid,
+		}
+	}
+	if m.TbsPubKeyAlg != "" {
+		oid, err := cert.OidFromString(m.TbsPubKeyAlg)
+		if err != nil {
+			return err
+		}
+		c.Manipulations.TbsPublicKeyAlgorithm = &pkix.AlgorithmIdentifier{
+			Algorithm: oid,
+		}
+	}
+	if m.TbsPubKey != "" {
+		b, err := readRawString(m.TbsPubKey)
+		if err != nil {
+			return err
+		}
+		c.Manipulations.TbsPublicKey = &asn1.BitString{
+			Bytes:     b,
+			BitLength: len(b) * 8,
+		}
+	}
+
+	return nil
 }
 
 type CfgFileType int
@@ -394,6 +462,8 @@ func initCertificate(c CertConfig) (*config.CertificateContent, error) {
 			out.SignatureAlgorithm = defaulSignatureAlgorithmEc
 		}
 	}
+
+	c.Manipulations.Apply(&out)
 
 	out.Extensions, err = parseExtensions(c.Extensions)
 	if err != nil {

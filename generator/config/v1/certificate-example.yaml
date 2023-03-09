@@ -112,6 +112,37 @@ validity:
     # end date in the form of YYYY-MM-DD
     # until: 2030-01-01
 
+# manipulation section
+# this allows to manipulate various properties of the certificate
+# to re-create specific error cases. this should be used to harden
+# certificate verification routines. good-case certificates should
+# not rely on these properties in any way.
+#
+# the naming of each manipulation reflects where the value is found
+# inside the asn1 hierarchy of the certificate.
+#
+# manipulated values inside of the signed part of the certificate
+# will be applied prior to signing to yield a valid signature.
+# (optional)
+manipulations:
+  # set the X.509 version. this integer gets written directly
+  # to the certificate (e.g. 0 will refer to X.509 version 1)
+  .version: 2
+
+  # signature algorithm next to the signed part of the certificate
+  #.signatureAlgorithm: 1.2.3.4
+
+  # signature value next to the signed part of the certificate
+  # must be in binary form (see extensions for more info on that)
+  #.signatureValue: "!binary:AQIDBA=="
+
+  # signature algorithm inside the signed part of the certificate
+  #.tbs.signature: 1.2.3.11
+  #.tbs.subjectPublicKey.algorithm: 1.5.1.3
+
+  # must be in binary form (see extensions for more info on that)
+  #.tbs.subjectPublicKey.subjectPublicKey: "!binary:AQIDBA=="
+
 # specifiy the certificate's extensions.
 #
 # note that this is a list where each element contains exactly one extension

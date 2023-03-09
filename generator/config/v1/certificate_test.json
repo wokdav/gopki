@@ -3,7 +3,10 @@
         "name": "allValues",
         "test": {
             "version": 1,
+            "serialNumber": 1234567890,
             "subject": "C=DE, CN=MyCertificate",
+            "issuerUniqueId": "!binary:AAAAAAAAAAAAAAAAAAAAAA==",
+            "subjectUniqueId": "!binary:AAAAAAAAAAAAAAAAAAAAAA==",
             "keyAlgorithm": "P-256",
             "validity": {
                 "from": "2020-01-01",
@@ -523,6 +526,114 @@
             "version": 1,
             "subject": "C=DE, CN=MyCertificate",
             "alias": "\\/%$"
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "manipEmpty",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "manipulations": {}
+        },
+        "expectSuccess": false
+    },
+    {
+        "name": "manipVersion",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "manipulations": {
+                ".version": 1234
+            }
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "manipSigAlg",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "manipulations": {
+                ".signatureAlgorithm": "1.2.3.4"
+            }
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "manipSigVal",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "manipulations": {
+                ".signatureValue": "!binary:AQIDBA=="
+            }
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "manipInnerSigAlg",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "manipulations": {
+                ".tbs.signature": "1.2.3.4"
+            }
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "manipPubKeyAlg",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "manipulations": {
+                ".tbs.subjectPublicKey.algorithm": "1.2.3.4"
+            }
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "manipPubKey",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "manipulations": {
+                ".tbs.subjectPublicKey.subjectPublicKey": "!binary:AQIDBA=="
+            }
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "manipAll",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "manipulations": {
+                ".version": 1234,
+                ".signatureAlgorithm": "1.2.3.4",
+                ".signatureValue": "!binary:AQIDBA==",
+                ".tbs.signature": "1.2.3.4",
+                ".tbs.subjectPublicKey.algorithm": "1.2.3.4",
+                ".tbs.subjectPublicKey.subjectPublicKey": "!binary:AQIDBA=="
+            }
+        },
+        "expectSuccess": true
+    },
+    {
+        "name": "manipUnknown",
+        "test": {
+            "version": 1,
+            "subject": "C=DE, CN=MyCertificate",
+            "manipulations": {
+                ".version": 1234,
+                ".signatureAlgorithm": "1.2.3.4",
+                ".signatureValue": "!binary:AQIDBA==",
+                ".tbs.signature": "1.2.3.4",
+                ".tbs.subjectPublicKey.algorithm": "1.2.3.4",
+                ".tbs.subjectPublicKey.subjectPublicKey": "!binary:AQIDBA==",
+                ".badManipulation": "1.2.3.4"
+            }
         },
         "expectSuccess": false
     }

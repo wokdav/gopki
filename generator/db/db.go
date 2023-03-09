@@ -216,7 +216,7 @@ func Update(backend Database, strat UpdateStrategy) (int, error) {
 
 		//sign
 		logging.Debugf("signing certificate for %v", currentEntity)
-		crt, err := ctx.Sign(entityObj.Config.SignatureAlgorithm)
+		crt, err := generator.SignCertBody(ctx, entityObj.Config)
 		if err != nil {
 			return certsGenerated, err
 		}

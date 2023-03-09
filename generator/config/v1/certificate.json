@@ -76,6 +76,31 @@
             "items": {
                 "$ref": "extension.json"
             }
+        },
+        "manipulations": {
+            "type": "object",
+            "properties": {
+                ".version": {
+                    "type": "integer"
+                },
+                ".signatureAlgorithm": {
+                    "$ref": "oid.json"
+                },
+                ".signatureValue": {
+                    "$ref": "extension_rawcontent.json"
+                },
+                ".tbs.signature": {
+                    "$ref": "oid.json"
+                },
+                ".tbs.subjectPublicKey.algorithm": {
+                    "$ref": "oid.json"
+                },
+                ".tbs.subjectPublicKey.subjectPublicKey": {
+                    "$ref": "extension_rawcontent.json"
+                }
+            },
+            "additionalProperties": false,
+            "minProperties": 1
         }
     },
     "additionalProperties": false,

@@ -16,7 +16,6 @@ import (
 	"github.com/wokdav/gopki/logging"
 )
 
-//TODO: add manipulation for other certificate fields (e.g. serial number)
 //TODO: add support for CSRs
 //TODO: collect certificates and configs concurrently via channels
 //TODO: either fix cross-platform determinism or drop it altogether
@@ -63,5 +62,38 @@ func BuildCertBody(c config.CertificateContent, prk crypto.PrivateKey) (*cert.Ce
 
 	ctx.SetIssuer(cert.AsIssuer(*ctx))
 
+	if c.Manipulations.Version != nil {
+		ctx.TbsCertificate.Version = *c.Manipulations.Version
+	}
+	if c.Manipulations.TbsSignature != nil {
+		ctx.TbsCertificate.SignatureAlgorithm = *c.Manipulations.TbsSignature
+	}
+	if c.Manipulations.TbsPublicKeyAlgorithm != nil {
+		ctx.TbsCertificate.PublicKey.Algorithm = *c.Manipulations.TbsPublicKeyAlgorithm
+	}
+	if c.Manipulations.TbsPublicKey != nil {
+		ctx.TbsCertificate.PublicKey.PublicKey = *c.Manipulations.TbsPublicKey
+	}
+
 	return ctx, nil
+}
+
+// Returns a [cert.Certificate] using the suppliec [cert.CertificateContext].
+// It also takes care of applying the [config.CertificateContent.Manipulations]
+// to the certificate. The function will fail, if the signing fails.
+func SignCertBody(ctx *cert.CertificateContext, cfg config.CertificateContent) (*cert.Certificate, error) {
+	cert, err := ctx.Sign(cfg.SignatureAlgorithm)
+	if err != nil {
+		logging.Errorf("can't sign certificate for %v: %v", cfg.Alias, err.Error())
+		return nil, err
+	}
+
+	if cfg.Manipulations.SignatureAlgorithm != nil {
+		cert.SignatureAlgorithm = *cfg.Manipulations.SignatureAlgorithm
+	}
+	if cfg.Manipulations.SignatureValue != nil {
+		cert.SignatureValue = *cfg.Manipulations.SignatureValue
+	}
+
+	return cert, nil
 }

@@ -129,6 +129,16 @@ type CertificateContent struct {
 	KeyAlgorithm       cert.KeyAlgorithm
 	SignatureAlgorithm cert.SignatureAlgorithm
 	Extensions         []ExtensionConfig
+	Manipulations      Manipulations
+}
+
+type Manipulations struct {
+	Version               *int
+	SignatureAlgorithm    *pkix.AlgorithmIdentifier
+	SignatureValue        *asn1.BitString
+	TbsSignature          *pkix.AlgorithmIdentifier
+	TbsPublicKeyAlgorithm *pkix.AlgorithmIdentifier
+	TbsPublicKey          *asn1.BitString
 }
 
 // HashSum returns a sha1 hash of the content

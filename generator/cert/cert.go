@@ -50,7 +50,7 @@ type TbsCertificate struct {
 	Issuer             pkix.RDNSequence
 	Validity           validity
 	Subject            pkix.RDNSequence
-	PublicKey          publicKeyInfo
+	PublicKey          PublicKeyInfo
 	IssuerUniqueId     asn1.BitString   `asn1:"optional,tag:1"`
 	SubjectUniqueId    asn1.BitString   `asn1:"optional,tag:2"`
 	Extensions         []pkix.Extension `asn1:"omitempty,optional,explicit,tag:3"`
@@ -60,7 +60,7 @@ type validity struct {
 	NotBefore, NotAfter time.Time
 }
 
-type publicKeyInfo struct {
+type PublicKeyInfo struct {
 	Algorithm pkix.AlgorithmIdentifier
 	PublicKey asn1.BitString
 }
@@ -582,8 +582,10 @@ func (c *CertificateContext) Sign(alg SignatureAlgorithm) (*Certificate, error) 
 		return nil, errors.New("cert: provided IssuerContext is nil. can't sign")
 	}
 
-	out.TBSCertificate.SignatureAlgorithm = pkix.AlgorithmIdentifier{
-		Algorithm: sigAlgOids[alg],
+	if out.TBSCertificate.SignatureAlgorithm.Algorithm == nil {
+		out.TBSCertificate.SignatureAlgorithm = pkix.AlgorithmIdentifier{
+			Algorithm: sigAlgOids[alg],
+		}
 	}
 	out.TBSCertificate.Issuer = c.Issuer.IssuerDn
 
