@@ -51,7 +51,7 @@ type TbsCertificate struct {
 	Validity           validity
 	Subject            pkix.RDNSequence
 	PublicKey          publicKeyInfo
-	UniqueId           asn1.BitString   `asn1:"optional,tag:1"`
+	IssuerUniqueId     asn1.BitString   `asn1:"optional,tag:1"`
 	SubjectUniqueId    asn1.BitString   `asn1:"optional,tag:2"`
 	Extensions         []pkix.Extension `asn1:"omitempty,optional,explicit,tag:3"`
 }

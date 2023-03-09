@@ -59,6 +59,9 @@ type CertConfig struct {
 	Alias              string         `json:"alias"`
 	Version            int            `json:"version"`
 	Profile            string         `json:"profile"`
+	SerialNumber       int64          `json:"serialNumber"`
+	IssuerUniqueId     string         `json:"issuerUniqueId"`
+	SubjectUniqueId    string         `json:"subjectUniqueId"`
 	Subject            string         `json:"subject"`
 	Issuer             string         `json:"issuer"`
 	Validity           CertValidity   `json:"validity"`
@@ -321,6 +324,24 @@ func (v V1Configurator) ParseConfiguration(s string) (any, error) {
 
 func initCertificate(c CertConfig) (*config.CertificateContent, error) {
 	out := config.CertificateContent{}
+
+	out.SerialNumber = c.SerialNumber
+	if len(c.IssuerUniqueId) > 0 {
+		b, err := readRawString(c.IssuerUniqueId)
+		if err != nil {
+			return nil, err
+		}
+		out.IssuerUniqueId.Bytes = b
+		out.IssuerUniqueId.BitLength = len(b) * 8
+	}
+	if len(c.SubjectUniqueId) > 0 {
+		b, err := readRawString(c.SubjectUniqueId)
+		if err != nil {
+			return nil, err
+		}
+		out.SubjectUniqueId.Bytes = b
+		out.SubjectUniqueId.BitLength = len(b) * 8
+	}
 
 	out.Profile = c.Profile
 

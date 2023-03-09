@@ -38,6 +38,17 @@ subject: "CN=MyCert, 1.2.3.4=MyOwnAttribute"
 # (optional)
 alias: my-certificate
 
+# will be generated pseudo-randomly, if not provided via config
+# (optional)
+serialNumber: 1234567890
+
+# UIDs in binary form (see documentation for extensions for more info)
+# setting these only makes sense in rare cases. in practice, use of these
+# fields is discouraged
+# (optional)
+issuerUniqueId: "!binary:AQIDBA=="
+subjectUniqueId: "!binary:AQIDBA=="
+
 # alias of the issuing certificate (NOT the issuer DN).
 # a referencing issuer will always sign the certificate, even if the extensions
 # do not denote a valid authority.

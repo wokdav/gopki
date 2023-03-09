@@ -118,6 +118,9 @@ type Configurator interface {
 // Generation engines can use this to generate certificates.
 type CertificateContent struct {
 	Alias              string
+	SerialNumber       int64
+	IssuerUniqueId     asn1.BitString
+	SubjectUniqueId    asn1.BitString
 	Profile            string
 	Subject            pkix.RDNSequence
 	Issuer             string

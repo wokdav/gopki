@@ -9,6 +9,7 @@ package generator
 import (
 	"crypto"
 	"hash/crc32"
+	"math/big"
 
 	"github.com/wokdav/gopki/generator/cert"
 	"github.com/wokdav/gopki/generator/config"
@@ -42,6 +43,12 @@ func BuildCertBody(c config.CertificateContent, prk crypto.PrivateKey) (*cert.Ce
 
 	ctx := cert.NewCertificateContext(c.Subject, extBuild,
 		c.ValidFrom, c.ValidUntil, &seed)
+
+	if c.SerialNumber != 0 {
+		ctx.SerialNumber = big.NewInt(c.SerialNumber)
+	}
+	ctx.IssuerUniqueId = c.IssuerUniqueId
+	ctx.SubjectUniqueId = c.SubjectUniqueId
 
 	if prk == nil {
 		err = ctx.GeneratePrivateKey(c.KeyAlgorithm)

@@ -7,6 +7,7 @@ import (
 	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -208,6 +209,43 @@ func TestGenerateDeterministicConstantRSA(t *testing.T) {
 
 	if !bytes.Equal(marshal, expect) {
 		t.Fatal("certificates are not equal")
+	}
+}
+
+func TestWithSerialNumber(t *testing.T) {
+	var serial int64 = 112233445566778899
+	cert, err := certFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nserialNumber: %d", serial))
+	if err != nil || cert == nil {
+		t.Fatalf("error happened (%v) or cert is null", err)
+	}
+
+	if cert.TbsCertificate.SerialNumber.Int64() != serial {
+		t.Fatalf("serial number is not equal: %d != %d", cert.TbsCertificate.SerialNumber.Int64(), serial)
+	}
+}
+
+func TestWithIssuerUniqueId(t *testing.T) {
+	uid := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	cert, err := certFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nissuerUniqueId: \"!binary:%v\"", base64.StdEncoding.EncodeToString(uid)))
+	if err != nil || cert == nil {
+		t.Fatalf("error happened (%v) or cert is null", err)
+	}
+
+	if !bytes.Equal(cert.TbsCertificate.IssuerUniqueId.Bytes, uid) {
+		t.Fatalf("issuerUniqueId is not equal: %v != %v", cert.TbsCertificate.IssuerUniqueId.Bytes, uid)
+	}
+}
+
+func TestWithSubjectUniqueId(t *testing.T) {
+	uid := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	cert, err := certFromConfig(fmt.Sprintf("version: 1\nsubject: C=DE, CN=MyCertificate\nsubjectUniqueId: \"!binary:%v\"", base64.StdEncoding.EncodeToString(uid)))
+	if err != nil || cert == nil {
+		t.Fatalf("error happened (%v) or cert is null", err)
+	}
+
+	//remember: string representations are reversed
+	if !bytes.Equal(cert.TbsCertificate.SubjectUniqueId.Bytes, uid) {
+		t.Fatalf("subjectUniqueId is not equal: %v != %v", cert.TbsCertificate.SubjectUniqueId.Bytes, uid)
 	}
 }
 

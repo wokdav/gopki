@@ -4,20 +4,31 @@
     "type": "object",
     "properties": {
         "version": {
-			"type": "integer",
-			"description": "Version of the Certificate Profile Config syntax",
-			"enum": [1]
-		},
+            "type": "integer",
+            "description": "Version of the Certificate Profile Config syntax",
+            "enum": [
+                1
+            ]
+        },
         "alias": {
             "type": "string",
             "description": "A human readable name that may be used for e.g. generating file names. Should be unique under each certificate authority. If omitted, will be set to a string representation of the serial number.",
             "pattern": "^[^§\\$%&\\?\\*\\|<>]+$"
         },
-		"profile": {
-			"type": "string",
-			"description": "Name of the profile, must not be empty.",
+        "profile": {
+            "type": "string",
+            "description": "Name of the profile, must not be empty.",
             "pattern": "^[^\r\n]+$"
-		},
+        },
+        "serialNumber": {
+            "type": "integer"
+        },
+        "issuerUniqueId": {
+            "$ref": "extension_rawcontent.json"
+        },
+        "subjectUniqueId": {
+            "$ref": "extension_rawcontent.json"
+        },
         "issuer": {
             "type": "string"
         },
@@ -57,12 +68,19 @@
                 "ECDSAwithSHA512"
             ]
         },
-        "validity":   { "$ref": "validity.json" },
-		"extensions": {
-			"type": "array",
-			"items": { "$ref": "extension.json" }
-		}
+        "validity": {
+            "$ref": "validity.json"
+        },
+        "extensions": {
+            "type": "array",
+            "items": {
+                "$ref": "extension.json"
+            }
+        }
     },
     "additionalProperties": false,
-    "required": ["version", "subject"]
+    "required": [
+        "version",
+        "subject"
+    ]
 }
