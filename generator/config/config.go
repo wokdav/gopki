@@ -75,7 +75,7 @@ func GetConfigurator(version int) (Configurator, error) {
 // This is the minimum requirement for config implementations.
 // A test-marshal into this is done to determine the underlying config implementation.
 type configProxy struct {
-	Version int
+	Version *int
 }
 
 // The main parsing function for configurations. This is the intended way to parse a
@@ -95,11 +95,11 @@ func ParseConfig(r io.Reader) (any, error) {
 
 	var proxy configProxy
 	err = yaml.Unmarshal([]byte(cfgstr), &proxy)
-	if err != nil {
+	if err != nil || proxy.Version == nil {
 		return nil, ErrorUnknownFile("config: top level must be a map containg a key called 'version' that contains an integer")
 	}
 
-	configurator, err := GetConfigurator(proxy.Version)
+	configurator, err := GetConfigurator(*proxy.Version)
 	if err != nil {
 		return nil, err
 	}
