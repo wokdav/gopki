@@ -75,8 +75,8 @@ subjectUniqueId: "!binary:AQIDBA=="
 #  - RSA-4096
 #  - RSA-8192
 #
-# (optional - default: P-256)
-keyAlgorithm: P-256
+# (optional - default: P-224)
+keyAlgorithm: P-224
 
 # the algorithm the issuer shall use for the certificte's signature
 # must be appropriate for the issuer's key algorithm.
@@ -91,8 +91,7 @@ keyAlgorithm: P-256
 # - ECDSAwithSHA384
 # - ECDSAwithSHA512
 #
-# (optional - default: ECDSAwithSHA256)
-signatureAlgorithm: ECDSAwithSHA256
+# (optional - default: ECDSAWithSHA256)
 
 # name of the profile this config is validated against/inherits from.
 # (optional)

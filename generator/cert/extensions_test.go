@@ -81,13 +81,13 @@ func TestSubjectKeyIdNilError(t *testing.T) {
 
 func TestSubjectKeyIdDifferent(t *testing.T) {
 	//check that subjectKeyId is different for different keys
-	tbs1 := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration), nil)
+	tbs1 := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
 	err := tbs1.GeneratePrivateKey(P224)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	tbs2 := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration), nil)
+	tbs2 := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
 	err = tbs2.GeneratePrivateKey(P224)
 	if err != nil {
 		t.Fatalf(err.Error())
@@ -407,7 +407,7 @@ func TestAuthKeyIdOid(t *testing.T) {
 		t.Fatalf("wrong extension oid: %#v", ext.Id)
 	}
 
-	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration), nil)
+	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
 	ctx.GeneratePrivateKey(P224)
 	ctx.SetIssuer(AsIssuer(*ctx))
 	ext, err := NewAuthorityKeyIdentifierHash(false, ctx)
@@ -425,7 +425,7 @@ func TestAuthKeyCritical(t *testing.T) {
 		t.Fatal("extension should be critical")
 	}
 
-	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration), nil)
+	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
 	ctx.GeneratePrivateKey(P224)
 	ctx.SetIssuer(AsIssuer(*ctx))
 	ext, _ = NewAuthorityKeyIdentifierHash(true, ctx)
@@ -435,7 +435,7 @@ func TestAuthKeyCritical(t *testing.T) {
 }
 
 func TestAuthKeyNil(t *testing.T) {
-	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration), nil)
+	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
 	ctx.GeneratePrivateKey(P224)
 	ctx.SetIssuer(AsIssuer(*ctx))
 	ctx.Issuer.PublicKeyRaw = nil
@@ -463,7 +463,7 @@ func TestAuthKeyRawKeyId(t *testing.T) {
 
 func TestAuthKeyHashKeyId(t *testing.T) {
 	expectedPrefix := []byte{0x30, 0x16, 0x80, 0x14}
-	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration), nil)
+	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
 	ctx.GeneratePrivateKey(P224)
 	ctx.SetIssuer(AsIssuer(*ctx))
 	ext, _ := NewAuthorityKeyIdentifierHash(true, ctx)

@@ -8,7 +8,6 @@ package generator
 
 import (
 	"crypto"
-	"hash/crc32"
 	"math/big"
 
 	"github.com/wokdav/gopki/generator/cert"
@@ -40,12 +39,8 @@ func BuildCertBody(c config.CertificateContent, prk crypto.PrivateKey, req *cert
 			return nil, err
 		}
 	}
-
-	//calculate crc32 of alias and put it into seed
-	seed := int64(crc32.ChecksumIEEE([]byte(c.Alias + c.Subject.String())))
-
 	ctx := cert.NewCertificateContext(c.Subject, extBuild,
-		c.ValidFrom, c.ValidUntil, &seed)
+		c.ValidFrom, c.ValidUntil)
 
 	if c.SerialNumber != 0 {
 		ctx.SerialNumber = big.NewInt(c.SerialNumber)
