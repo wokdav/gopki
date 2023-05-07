@@ -16,7 +16,6 @@ import (
 	"github.com/wokdav/gopki/logging"
 )
 
-//TODO: add support for CSRs
 //TODO: collect certificates and configs concurrently via channels
 //TODO: either fix cross-platform determinism or drop it altogether
 //TODO: pkcs12 export
@@ -26,7 +25,12 @@ import (
 // for each supplied [config.ExtensionConfig], so the side offects of these
 // functions also apply. The function will fail, if any call to Builder()
 // or the certificate generation itself fails.
-func BuildCertBody(c config.CertificateContent, prk crypto.PrivateKey) (*cert.CertificateContext, error) {
+//
+// If a [crypto.PrivateKey] is supplied, it will be used to sign the
+// certificate. Otherwise a new key will be generated. If a
+// [cert.CertificateRequest] is supplied, the public key of the request
+// will be used instead of generating a new one.
+func BuildCertBody(c config.CertificateContent, prk crypto.PrivateKey, req *cert.CertificateRequest) (*cert.CertificateContext, error) {
 	extBuild := make([]cert.ExtensionBuilder, len(c.Extensions))
 	var err error
 	for i, extCfg := range c.Extensions {
@@ -50,13 +54,17 @@ func BuildCertBody(c config.CertificateContent, prk crypto.PrivateKey) (*cert.Ce
 	ctx.SubjectUniqueId = c.SubjectUniqueId
 
 	if prk == nil {
-		err = ctx.GeneratePrivateKey(c.KeyAlgorithm)
+		if req != nil {
+			ctx.PublicKey = req.TbsCsr.PublicKey
+		} else {
+			err = ctx.GeneratePrivateKey(c.KeyAlgorithm)
+		}
 	} else {
-		ctx.SetPrivateKey(prk)
+		err = ctx.SetPrivateKey(prk)
 	}
 
 	if err != nil {
-		logging.Errorf("can't create private key for %v: %v", c.Alias, err.Error())
+		logging.Errorf("can't set or create private key for %v: %v", c.Alias, err.Error())
 		return nil, err
 	}
 

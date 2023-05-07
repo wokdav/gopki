@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/asn1"
-	"encoding/pem"
 	"fmt"
 	"regexp"
 	"testing"
@@ -331,53 +330,6 @@ S7ye0vWoPHeDhH3vXSXg89kn9aCEvetSDi//NyxMQ/jRRUeXLio/Lsmg
 -----END PRIVATE KEY-----
 `
 
-func TestImportPem(t *testing.T) {
-	cert, err := ImportCertPem([]byte(testrootcert))
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-
-	if cert == nil {
-		t.Fatal("this should return a context")
-	}
-}
-
-func TestImportPemBrokenCert(t *testing.T) {
-	brokencert := "-----+-*8+-8+*87+*8+954+6468" + testrootcert
-	_, err := ImportCertPem([]byte(brokencert + testrootkey))
-	if err == nil {
-		t.Fatal("this should fail")
-	}
-}
-
-func TestImportWrongCertType(t *testing.T) {
-	p, _ := pem.Decode([]byte(testrootcert))
-	p.Type = "FOO"
-	brokencert := pem.EncodeToMemory(p)
-	_, err := ImportCertPem([]byte(testrootkey + string(brokencert)))
-	if err == nil {
-		t.Fatal("this should fail")
-	}
-}
-
-func TestImportPemBrokenKey(t *testing.T) {
-	brokenkey := "-----+-*8+-8+*87+*8+954+6468" + testrootkey
-	_, err := ImportKeyPem([]byte(testrootcert + brokenkey))
-	if err == nil {
-		t.Fatal("this should fail")
-	}
-}
-
-func TestImportWrongKeyType(t *testing.T) {
-	p, _ := pem.Decode([]byte(testrootkey))
-	p.Type = "FOO"
-	brokenkey := pem.EncodeToMemory(p)
-	_, err := ImportKeyPem([]byte(testrootcert + string(brokenkey)))
-	if err == nil {
-		t.Fatal("this should fail")
-	}
-}
-
 func TestAsIssuer(t *testing.T) {
 	subject := defaultSubject
 	ctx := NewCertificateContext(
@@ -402,5 +354,111 @@ func TestAsIssuer(t *testing.T) {
 
 	if !bytes.Equal(issuerCtx.PublicKeyRaw, ctx.PublicKey.PublicKey.Bytes) {
 		t.Fatal("raw public keys are different")
+	}
+}
+
+var testrequest string = `-----BEGIN CERTIFICATE REQUEST-----
+MIIBczCB3QIBADAPMQ0wCwYDVQQDEwR0ZXN0MIGfMA0GCSqGSIb3DQEBAQUAA4GN
+ADCBiQKBgQC5PbxMGVJ8aLF9lq/EvGObXTRMB7ieiZL9N+DJZg1n/ECCnZLIvYrr
+ZmmDV7YZsClgxKGfjJB0RQFFyZElFM9EfHEs8NJdidDKCRdIhDXQWRyhXKevHvdm
+CQNKzUeoxvdHpU/uscSkw6BgUzPyLyTx9A6ye2ix94z8Y9hGOBO2DQIDAQABoCUw
+IwYJKoZIhvcNAQkOMRYwFDAIBgIqAwQCBQAwCAYCKgMEAgUAMA0GCSqGSIb3DQEB
+CwUAA4GBAHROEsE7URk1knXmBnQtIHwoq663vlMcX3Hes58pUy020rWP8QkocA+X
+VF18/phg3p5ILlS4fcbbP2bEeV0pePo2k00FDPsJEKCBAX2LKxbU7Vp2OuV2HM2+
+VLOVx0i+/Q7fikp3hbN1JwuMTU0v2KL/IKoUcZc02+5xiYrnOIt5
+-----END CERTIFICATE REQUEST-----`
+
+func TestReadPem(t *testing.T) {
+	t.Run("cert", func(t *testing.T) {
+		out, err := ReadPem([]byte(testrootcert))
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+
+		if out.Certificate == nil {
+			t.Fatal("this should return a certificate")
+		}
+	})
+
+	t.Run("key", func(t *testing.T) {
+		out, err := ReadPem([]byte(testrootkey))
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+
+		if out.PrivateKey == nil {
+			t.Fatal("this should return a key")
+		}
+	})
+
+	t.Run("request", func(t *testing.T) {
+		out, err := ReadPem([]byte(testrequest))
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+
+		if out.Request == nil {
+			t.Fatal("this should return a request")
+		}
+	})
+}
+
+func TestReadPemBroken(t *testing.T) {
+	t.Run("cert", func(t *testing.T) {
+		brokencert := "-----+-*8+-8+*87+*8+954+6468" + testrootcert
+		out, err := ReadPem([]byte(brokencert))
+		if err == nil {
+			t.Fatal("this should fail")
+		}
+
+		if out.Certificate != nil {
+			t.Fatal("this should not return a certificate")
+		}
+	})
+
+	t.Run("key", func(t *testing.T) {
+		brokenkey := "-----+-*8+-8+*87+*8+954+6468" + testrootkey
+		out, err := ReadPem([]byte(brokenkey))
+		if err == nil {
+			t.Fatal("this should fail")
+		}
+
+		if out.PrivateKey != nil {
+			t.Fatal("this should not return a private key")
+		}
+	})
+
+	t.Run("request", func(t *testing.T) {
+		brokenreq := "-----+-*8+-8+*87+*8+954+6468" + testrequest
+		out, err := ReadPem([]byte(brokenreq))
+		if err == nil {
+			t.Fatal("this should fail")
+		}
+
+		if out.Request != nil {
+			t.Fatal("this should not return a request")
+		}
+	})
+}
+
+func TestReadAllPemTypes(t *testing.T) {
+	input := testrootcert + testrootkey + testrequest
+
+	out, err := ReadPem([]byte(input))
+
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if out.Certificate == nil {
+		t.Fatal("this should return a certificate")
+	}
+
+	if out.PrivateKey == nil {
+		t.Fatal("this should return a key")
+	}
+
+	if out.Request == nil {
+		t.Fatal("this should return a request")
 	}
 }
