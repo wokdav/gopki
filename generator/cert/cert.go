@@ -193,59 +193,88 @@ func WritePrivateKeyToPem(prk crypto.PrivateKey, w io.Writer) error {
 	return nil
 }
 
-// Find first block, where blockType is a substring of the block's type
-// and return the bytes in that block.
-func pemFindFirst(pemBytes []byte, blockType string) ([]byte, error) {
-	currentBlock := pemBytes
+// These structures reflect the ASN.1 structure of X.509 certificate
+// signature requests (see RFC 2986):
+type TbsCertificateRequest struct {
+	Version       int
+	Subject       asn1.RawValue
+	PublicKey     PublicKeyInfo
+	RawAttributes []asn1.RawValue `asn1:"tag:0"`
+}
+
+type CertificateRequest struct {
+	TbsCsr             TbsCertificateRequest
+	SignatureAlgorithm pkix.AlgorithmIdentifier
+	SignatureValue     asn1.BitString
+}
+
+type PemFileContent struct {
+	Certificate *Certificate
+	PrivateKey  crypto.PrivateKey
+	Request     *CertificateRequest
+}
+
+func (c *CertificateRequest) WritePem(w io.Writer) error {
+	b, err := asn1.Marshal(*c)
+	if err != nil {
+		return err
+	}
+
+	block := &pem.Block{
+		Type:  "CERTIFICATE REQUEST",
+		Bytes: b,
+	}
+
+	if err = pem.Encode(w, block); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ReadPem(pemBytes []byte) (PemFileContent, error) {
 	var p *pem.Block
+	var err error
+	var pemFileContent PemFileContent
 
 	for {
-		p, currentBlock = pem.Decode(currentBlock)
+		p, pemBytes = pem.Decode(pemBytes)
 		if p == nil {
-			if len(currentBlock) != 0 {
-				return nil, errors.New("can't decode data as PEM")
+			if len(pemBytes) != 0 {
+				return pemFileContent, errors.New("can't decode data as PEM")
 			}
 
 			break
 		}
 
-		if strings.Contains(p.Type, blockType) {
-			return p.Bytes, nil
+		switch p.Type {
+		case "CERTIFICATE":
+			cert := &Certificate{}
+			_, err = asn1.Unmarshal(p.Bytes, cert)
+			if err != nil {
+				return pemFileContent, err
+			}
+			pemFileContent.Certificate = cert
+
+		case "CERTIFICATE REQUEST":
+			req := &CertificateRequest{}
+			_, err = asn1.Unmarshal(p.Bytes, req)
+			if err != nil {
+				return pemFileContent, err
+			}
+			pemFileContent.Request = req
+
+		default:
+			if strings.Contains(p.Type, "PRIVATE KEY") {
+				pemFileContent.PrivateKey, err = x509.ParsePKCS8PrivateKey(p.Bytes)
+				if err != nil {
+					return pemFileContent, err
+				}
+			}
 		}
 	}
 
-	return nil, fmt.Errorf("no block containing '%v' was found", blockType)
-}
-
-// Find first PRIVATE KEY in the provided reader and return it
-func ImportKeyPem(pemBytes []byte) (crypto.PrivateKey, error) {
-	keyBytes, err := pemFindFirst(pemBytes, "PRIVATE KEY")
-	if err != nil {
-		return nil, err
-	}
-
-	key, err := x509.ParsePKCS8PrivateKey(keyBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return key, nil
-}
-
-// Find first CERTIFICATE in the provided reader, then unmarshal and return it
-func ImportCertPem(pemBytes []byte) (*Certificate, error) {
-	certBytes, err := pemFindFirst(pemBytes, "CERTIFICATE")
-	if err != nil {
-		return nil, err
-	}
-
-	cert := &Certificate{}
-	_, err = asn1.Unmarshal(certBytes, cert)
-	if err != nil {
-		return nil, err
-	}
-
-	return cert, nil
+	return pemFileContent, nil
 }
 
 // Syntactic sugar to yield a [config.IssuerContext] from a
@@ -409,6 +438,8 @@ func (ctx *CertificateContext) SetPrivateKey(key crypto.PrivateKey) error {
 		if err != nil {
 			return err
 		}
+
+		return nil
 	}
 
 	return errors.New("cert: private key neither compatible with ecdsa.PrivateKey nor with rsa.PrivateKey")

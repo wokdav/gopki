@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -37,6 +38,16 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgxBZoTr/R7fEf9hRL
 s+lkvFGbsJmVv8VNRL5YZOvUzbmhRANCAASNtscTl0w3Yrz1eLFBAWX9v0oXv5Z1
 S7ye0vWoPHeDhH3vXSXg89kn9aCEvetSDi//NyxMQ/jRRUeXLio/Lsmg
 -----END PRIVATE KEY-----
+`
+
+var testrootrequest string = `-----BEGIN CERTIFICATE REQUEST-----
+MIIBFDCBuwIBADBZMQswCQYDVQQGEwJERTETMBEGA1UECAwKU29tZS1TdGF0ZTEh
+MB8GA1UECgwYSW50ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMRIwEAYDVQQDDAlUZXN0
+IFJvb3QwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASNtscTl0w3Yrz1eLFBAWX9
+v0oXv5Z1S7ye0vWoPHeDhH3vXSXg89kn9aCEvetSDi//NyxMQ/jRRUeXLio/Lsmg
+oAAwCgYIKoZIzj0EAwIDSAAwRQIhAOCoI+eL7eTNgq733+4sgHuEFU9Dz4Bfm5Bx
+jEpXpIiAAiAvF7qE2lpgPdzcpbWpuJg31qbg0z/T/BNAPxAxewNe9g==
+-----END CERTIFICATE REQUEST-----
 `
 
 func copyFilesIntoMapFs(path string) (*fstest.MapFS, error) {
@@ -369,6 +380,59 @@ func TestReuseKey(t *testing.T) {
 	}
 }
 
+func TestUseRequest(t *testing.T) {
+	fsdb := getTestFs(
+		map[string]string{
+			"root.yaml": "version: 1\nsubject: CN=Test Root",
+			"root.pem":  testrootcert + testrootkey,
+			"sub.yaml":  "version: 1\nissuer: root\nsubject: CN=Test Sub",
+			"sub.pem":   testrootrequest,
+		},
+	)
+
+	originalRequest, err := cert.ReadPem([]byte(testrootrequest))
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	testdb := NewFilesystemDatabase(fsdb)
+	_, err = quickUpdate(testdb, db.UpdateMissing)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	f, err := fs.ReadFile(fsdb.FS(), "sub.pem")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	pemfile, err := cert.ReadPem(f)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if pemfile.PrivateKey != nil {
+		t.Fatal("private key should not be present")
+	}
+
+	if pemfile.Certificate == nil {
+		t.Fatal("certificate should be present")
+	}
+
+	if pemfile.Request == nil {
+		t.Fatal("request should still be present")
+	}
+
+	if !reflect.DeepEqual(pemfile.Request, originalRequest.Request) {
+		t.Fatal("request has changed")
+	}
+
+	if !reflect.DeepEqual(pemfile.Certificate.TBSCertificate.PublicKey,
+		pemfile.Request.TbsCsr.PublicKey) {
+		t.Fatal("public key does not match")
+	}
+}
+
 func TestDirectoriesNonAmbiguousAlias(t *testing.T) {
 	fsdb := getTestFs(
 		map[string]string{
@@ -506,10 +570,12 @@ func TestGenerateWithImport(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	subCert, err := cert.ImportCertPem(b)
+	subCertPem, err := cert.ReadPem(b)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+
+	subCert := subCertPem.Certificate
 
 	subCertBytes, err := asn1.Marshal(*subCert)
 	if err != nil {

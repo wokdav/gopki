@@ -37,7 +37,7 @@ func contextFromConfig(s string) (*cert.CertificateContext, error) {
 
 	certCfg := cfg.(*config.CertificateContent)
 
-	ctx, err := BuildCertBody(*certCfg, nil)
+	ctx, err := BuildCertBody(*certCfg, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func certFromConfig(s string) (*cert.Certificate, error) {
 
 	certCfg := cfg.(*config.CertificateContent)
 
-	cert, err := BuildCertBody(*certCfg, nil)
+	cert, err := BuildCertBody(*certCfg, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -99,14 +99,14 @@ func TestGenerateExtensionsFail(t *testing.T) {
 	subjkeyid.Raw = "!binary:AQIDBA=="
 	certCfg.Extensions[0] = subjkeyid
 
-	_, err = BuildCertBody(*certCfg, nil)
+	_, err = BuildCertBody(*certCfg, nil, nil)
 	if err == nil {
 		t.Fatal("this should fail")
 	}
 }
 
 func TestGenerateEmpty(t *testing.T) {
-	_, err := BuildCertBody(config.CertificateContent{}, nil)
+	_, err := BuildCertBody(config.CertificateContent{}, nil, nil)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -115,7 +115,7 @@ func TestGenerateEmpty(t *testing.T) {
 func TestGenerateFail(t *testing.T) {
 	c := config.CertificateContent{}
 	c.KeyAlgorithm = 0xACDC
-	_, err := BuildCertBody(c, nil)
+	_, err := BuildCertBody(c, nil, nil)
 	if err == nil {
 		t.Fatalf("this should fail")
 	}
@@ -292,7 +292,7 @@ func BenchmarkGenerate(b *testing.B) {
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		BuildCertBody(*certCfgCasted, key)
+		BuildCertBody(*certCfgCasted, key, nil)
 	}
 	b.ReportAllocs()
 }

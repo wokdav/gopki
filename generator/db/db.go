@@ -56,6 +56,7 @@ type Database interface {
 type BuildArtifact struct {
 	Certificate *cert.Certificate
 	PrivateKey  crypto.PrivateKey
+	Request     *cert.CertificateRequest
 }
 
 type DbEntity struct {
@@ -195,7 +196,7 @@ func Update(backend Database, strat UpdateStrategy) (int, error) {
 
 		logging.Debugf("generating new certificate body for %v", currentEntity)
 		ctx, err = generator.BuildCertBody(entityObj.Config,
-			entityObj.BuildArtifact.PrivateKey)
+			entityObj.BuildArtifact.PrivateKey, entityObj.BuildArtifact.Request)
 		if err != nil {
 			return certsGenerated, err
 		}
@@ -224,6 +225,7 @@ func Update(backend Database, strat UpdateStrategy) (int, error) {
 		entityObj.BuildArtifact = BuildArtifact{
 			Certificate: crt,
 			PrivateKey:  ctx.PrivateKey,
+			Request:     entityObj.BuildArtifact.Request,
 		}
 
 		entityObj.LastBuild = time.Now()

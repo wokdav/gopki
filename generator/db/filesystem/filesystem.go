@@ -225,6 +225,12 @@ func (fsdb *FsDb) exportPemFile(entity fsEntity) error {
 			return err
 		}
 	}
+	if entity.BuildArtifact.Request != nil {
+		err = entity.BuildArtifact.Request.WritePem(&bb)
+		if err != nil {
+			return err
+		}
+	}
 
 	if bb.Len() > 0 {
 		err = fsdb.filesystem.WriteFile(
@@ -261,9 +267,15 @@ func (fsdb *FsDb) importPemFile(alias string) db.BuildArtifact {
 		return out
 	}
 
-	out.Certificate, err = cert.ImportCertPem(certfiContent)
+	pemFile, err := cert.ReadPem(certfiContent)
 	if err != nil {
-		logging.Infof("certificate import failed: %v", err)
+		logging.Infof("pem import failed: %v", err)
+	}
+
+	if pemFile.Certificate != nil {
+		out.Certificate = pemFile.Certificate
+	} else {
+		logging.Infof("certificate import failed: no certificate found")
 	}
 
 	//get modtime for certFile
@@ -274,9 +286,14 @@ func (fsdb *FsDb) importPemFile(alias string) db.BuildArtifact {
 		e.lastArtifactWrite = fi.ModTime()
 	}
 
-	out.PrivateKey, err = cert.ImportKeyPem(certfiContent)
-	if err != nil {
-		logging.Infof("private key import failed: %v", err)
+	if pemFile.PrivateKey != nil {
+		out.PrivateKey = pemFile.PrivateKey
+	} else {
+		if pemFile.Request != nil {
+			out.Request = pemFile.Request
+		} else {
+			logging.Infof("private key import failed: no private key or certificate request found")
+		}
 	}
 
 	return out
