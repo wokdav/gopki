@@ -275,6 +275,7 @@ func TestMergeExtensions(t *testing.T) {
 	extDifferentContent.Content = "im different"
 
 	ext2 := testExt{ObjectIdentifier: asn1.ObjectIdentifier{5, 6, 7, 8}}
+	ext2Profile := ProfileExtension{ext2, ExtensionProfile{}}
 
 	ext2Override := ProfileExtension{ext2, ExtensionProfile{Override: true}}
 
@@ -316,14 +317,20 @@ func TestMergeExtensions(t *testing.T) {
 			result:     []ExtensionConfig{ext, ext2},
 		}, {
 			//accept override even if it does not immediately follow
+			//remember: profile extensions are added at the top
 			profile:    []ProfileExtension{extOverride},
 			certConfig: []ExtensionConfig{ext2, ext},
-			result:     []ExtensionConfig{ext2, ext},
+			result:     []ExtensionConfig{ext, ext2},
 		}, {
 			//accept override even if order is different
 			profile:    []ProfileExtension{extOverride, ext2Override},
 			certConfig: []ExtensionConfig{ext2, ext},
-			result:     []ExtensionConfig{ext2, ext},
+			result:     []ExtensionConfig{ext, ext2},
+		}, {
+			//honor order for profile
+			profile:    []ProfileExtension{extOverride, ext2Profile},
+			certConfig: []ExtensionConfig{ext},
+			result:     []ExtensionConfig{ext, ext2},
 		}, {
 			//handle multiples part
 			profile:    []ProfileExtension{extProf, extProf, extProf},
@@ -334,8 +341,7 @@ func TestMergeExtensions(t *testing.T) {
 			profile:    []ProfileExtension{extOptional},
 			certConfig: []ExtensionConfig{},
 			result:     []ExtensionConfig{},
-		},
-		{
+		}, {
 			//handle optionals III
 			profile:    []ProfileExtension{extOptional},
 			certConfig: []ExtensionConfig{ext},

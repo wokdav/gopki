@@ -48,8 +48,10 @@ extensions:
     - subjectKeyIdentifier:
         content: hash
       optional: false # default: false
-    - subjectAlternativeName:
+    - subjectAlternativeName: {}
         # content is missing here, the certificate has to override this extension
+        # in yaml you have to explicitly set this to an empty dict. if you don't
+        # it will be treated as null and not be loaded
       override: true # default: false
     - basicConstraints:
         critical: true

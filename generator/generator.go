@@ -16,7 +16,6 @@ import (
 )
 
 //TODO: collect certificates and configs concurrently via channels
-//TODO: either fix cross-platform determinism or drop it altogether
 //TODO: pkcs12 export
 
 // Returns a [cert.CertificateContext] that corresponds to the supplied

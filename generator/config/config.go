@@ -428,6 +428,7 @@ func Merge(profile CertificateProfile, content CertificateContent) (*Certificate
 	newExt := make([]ExtensionConfig, 0, len(profile.Extensions)+len(content.Extensions))
 
 	certExtsHandled := make([]int, 0, len(content.Extensions))
+	certExtsOverridden := make([]int, 0, len(content.Extensions))
 	for _, profExtOuter := range profile.Extensions {
 		profExt := profExtOuter.ExtensionConfig
 		oidProf, err := profExt.Oid()
@@ -459,6 +460,12 @@ func Merge(profile CertificateProfile, content CertificateContent) (*Certificate
 				handled = true
 				certExtsHandled = append(certExtsHandled, i)
 
+				if profExtOuter.Override {
+					newExt = append(newExt, certExt)
+					certExtsOverridden = append(certExtsOverridden, i)
+					break
+				}
+
 				certExtJson, err := json.Marshal(certExt)
 				if err != nil {
 					return nil, err
@@ -481,7 +488,22 @@ func Merge(profile CertificateProfile, content CertificateContent) (*Certificate
 		}
 	}
 
-	newExt = append(newExt, content.Extensions...)
+	for i, certExt := range content.Extensions {
+		// check if we already overrode this extension
+		wasThisOverridden := false
+		for _, ix := range certExtsOverridden {
+			if ix == i {
+				wasThisOverridden = true
+				break
+			}
+		}
+
+		// skip if we did
+		if !wasThisOverridden {
+			newExt = append(newExt, certExt)
+		}
+	}
+
 	out.Extensions = newExt
 
 	return &out, nil

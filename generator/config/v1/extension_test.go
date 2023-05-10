@@ -175,9 +175,14 @@ func TestSubjKeyNoContent(t *testing.T) {
 	extCfg := SubjectKeyIdentifier{
 		Critical: true,
 	}
-	_, err := extCfg.Builder()
-	if err == nil {
-		t.Fatal("build without content nor raw should fail")
+	b, err := extCfg.Builder()
+	if err != nil {
+		t.Fatal("this should yield an OverrideNeededBuilder")
+	}
+
+	_, ok := b.(config.OverrideNeededBuilder)
+	if !ok {
+		t.Fatal("this should yield an OverrideNeededBuilder")
 	}
 }
 
@@ -290,9 +295,14 @@ func TestKeyUsageNoContent(t *testing.T) {
 		Critical: true,
 	}
 
-	_, err := extCfg.Builder()
-	if err == nil {
-		t.Fatal("build without content nor raw should fail")
+	b, err := extCfg.Builder()
+	if err != nil {
+		t.Fatal("this should yield an OverrideNeededBuilder")
+	}
+
+	_, ok := b.(config.OverrideNeededBuilder)
+	if !ok {
+		t.Fatal("this should yield an OverrideNeededBuilder")
 	}
 }
 
@@ -446,9 +456,14 @@ func TestSubjAltNameNoContent(t *testing.T) {
 		Critical: true,
 	}
 
-	_, err := extCfg.Builder()
-	if err == nil {
-		t.Fatal("build without content nor raw should fail")
+	b, err := extCfg.Builder()
+	if err != nil {
+		t.Fatal("this should yield an OverrideNeededBuilder")
+	}
+
+	_, ok := b.(config.OverrideNeededBuilder)
+	if !ok {
+		t.Fatal("this should yield an OverrideNeededBuilder")
 	}
 }
 
@@ -625,9 +640,14 @@ func TestCertPoliciesNoContent(t *testing.T) {
 		Critical: true,
 	}
 
-	_, err := extCfg.Builder()
-	if err == nil {
-		t.Fatal("build without content nor raw should fail")
+	b, err := extCfg.Builder()
+	if err != nil {
+		t.Fatal("this should yield an OverrideNeededBuilder")
+	}
+
+	_, ok := b.(config.OverrideNeededBuilder)
+	if !ok {
+		t.Fatal("this should yield an OverrideNeededBuilder")
 	}
 }
 
@@ -734,9 +754,14 @@ func TestAiaNoContent(t *testing.T) {
 		Critical: true,
 	}
 
-	_, err := extCfg.Builder()
-	if err == nil {
-		t.Fatal("build without content nor raw should fail")
+	b, err := extCfg.Builder()
+	if err != nil {
+		t.Fatal("this should yield an OverrideNeededBuilder")
+	}
+
+	_, ok := b.(config.OverrideNeededBuilder)
+	if !ok {
+		t.Fatal("this should yield an OverrideNeededBuilder")
 	}
 }
 
@@ -871,9 +896,14 @@ func TestAuthKeyIdNoContent(t *testing.T) {
 		Critical: true,
 	}
 
-	_, err := extCfg.Builder()
-	if err == nil {
-		t.Fatal("build without content nor raw should fail")
+	b, err := extCfg.Builder()
+	if err != nil {
+		t.Fatal("this should yield an OverrideNeededBuilder")
+	}
+
+	_, ok := b.(config.OverrideNeededBuilder)
+	if !ok {
+		t.Fatal("this should yield an OverrideNeededBuilder")
 	}
 }
 
@@ -1000,9 +1030,14 @@ func TestExtKeyUsageNoContent(t *testing.T) {
 		Critical: true,
 	}
 
-	_, err := extCfg.Builder()
-	if err == nil {
-		t.Fatal("build without content nor raw should fail")
+	b, err := extCfg.Builder()
+	if err != nil {
+		t.Fatal("this should yield an OverrideNeededBuilder")
+	}
+
+	_, ok := b.(config.OverrideNeededBuilder)
+	if !ok {
+		t.Fatal("this should yield an OverrideNeededBuilder")
 	}
 }
 

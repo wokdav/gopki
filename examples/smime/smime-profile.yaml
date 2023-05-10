@@ -10,7 +10,9 @@ extensions:
   - certificatePolicies:
       content:
         - oid: 2.16.840.1.101.3.2.1.48.1
-  - subjectAlternativeName:
+  # note that the content has to be set to an empty map here for the extension to
+  # be part of the profile
+  - subjectAlternativeName: {}
     optional: no
     override: yes
   - keyUsage:

@@ -191,9 +191,21 @@ func (s SubjectKeyIdentifier) Builder() (cert.ExtensionBuilder, error) {
 				return cert.NewSubjectKeyIdentifier(s.Critical, ctx)
 			},
 		}, nil
+	} else if len(s.Content) != 0 {
+		b, err := readRawString(s.Content)
+		if err != nil {
+			return nil, err
+		}
+		return config.ConstantBuilder{
+			Extension: pkix.Extension{
+				Id:       oid,
+				Critical: s.Critical,
+				Value:    b,
+			},
+		}, nil
 	}
 
-	return nil, errors.New("config-v1: [subjectKeyId] unable to build extension")
+	return config.OverrideNeededBuilder{}, nil
 }
 
 const (
@@ -273,7 +285,7 @@ func (k KeyUsage) Builder() (cert.ExtensionBuilder, error) {
 		}, nil
 	}
 
-	return nil, fmt.Errorf("config-v1: [keyUsage] neither content nor raw-content is given")
+	return config.OverrideNeededBuilder{}, nil
 }
 
 // JSON/YAML representation for this extension.
@@ -324,7 +336,7 @@ func (s SubjectAltName) Builder() (cert.ExtensionBuilder, error) {
 	}
 
 	if s.Content == nil {
-		return nil, fmt.Errorf("config-v1: [subjectAlternativeName] neither content nor raw-content is given")
+		return config.OverrideNeededBuilder{}, nil
 	}
 
 	sanValues := make([]cert.GeneralName, len(s.Content))
@@ -415,7 +427,7 @@ func (b BasicConstraints) Builder() (cert.ExtensionBuilder, error) {
 		}, nil
 	}
 
-	return nil, errors.New("config-v1: [basicConstraints] neither content nor raw content is given")
+	return config.OverrideNeededBuilder{}, nil
 }
 
 type UserNotice struct {
@@ -517,7 +529,7 @@ func (c CertPolicies) Builder() (cert.ExtensionBuilder, error) {
 		return config.ConstantBuilder{Extension: *ext}, nil
 	}
 
-	return nil, fmt.Errorf("config-v1: [certPolicies] neither content nor raw-content is given")
+	return config.OverrideNeededBuilder{}, nil
 }
 
 type SingleAuthInfo struct {
@@ -584,7 +596,7 @@ func (a AuthInfoAccess) Builder() (cert.ExtensionBuilder, error) {
 		return config.ConstantBuilder{Extension: *ext}, nil
 	}
 
-	return nil, fmt.Errorf("config-v1: [authorityInfoAccess] neither content nor raw-content is given")
+	return config.OverrideNeededBuilder{}, nil
 }
 
 type AuthKeyIdContent struct {
@@ -663,7 +675,7 @@ func (a AuthKeyId) Builder() (cert.ExtensionBuilder, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("config-v1: [authKeyId] neither content nor raw-content is given")
+	return config.OverrideNeededBuilder{}, nil
 }
 
 // JSON/YAML representation for this extension.
@@ -759,7 +771,7 @@ func (e ExtKeyUsage) Builder() (cert.ExtensionBuilder, error) {
 		return config.ConstantBuilder{Extension: *ext}, nil
 	}
 
-	return nil, fmt.Errorf("config-v1: [extendedKeyUsage] neither content nor raw-content is given")
+	return config.OverrideNeededBuilder{}, nil
 }
 
 type AdmissionExtension struct {
@@ -926,7 +938,7 @@ func (a AdmissionExtension) Builder() (cert.ExtensionBuilder, error) {
 		return config.ConstantBuilder{Extension: *ext}, nil
 	}
 
-	return nil, fmt.Errorf("config-v1: [admission] neither content nor raw-content is given")
+	return config.OverrideNeededBuilder{}, nil
 }
 
 // JSON/YAML representation for this custom extensions.
