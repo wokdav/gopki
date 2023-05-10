@@ -1194,3 +1194,12 @@ func TestAdmissionMinimumViable(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 }
+
+func TestEmptyExtensionList(t *testing.T) {
+	_, err := parseExtensions([]AnyExtension{
+		{},
+	})
+	if err == nil {
+		t.Fatal("list item with all null extensions should be rejected")
+	}
+}

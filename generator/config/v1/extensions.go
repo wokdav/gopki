@@ -66,9 +66,10 @@ const (
 
 func parseExtensions(e []AnyExtension) ([]config.ExtensionConfig, error) {
 	out := make([]config.ExtensionConfig, 0, len(e))
-	for _, ext := range e {
+	for i, ext := range e {
 		extStructVal := reflect.ValueOf(ext)
 		extStructTyp := reflect.TypeOf(ext)
+		found := false
 		for j := 0; j < extStructVal.NumField(); j++ {
 			innerStructValPtr := extStructVal.Field(j)
 			innerStructTyp := extStructTyp.Field(j)
@@ -82,6 +83,7 @@ func parseExtensions(e []AnyExtension) ([]config.ExtensionConfig, error) {
 				continue
 			}
 
+			found = true
 			innerStructAny := innerStructValPtr.Elem().Interface()
 			innerStruct, ok := innerStructAny.(config.ExtensionConfig)
 			if !ok {
@@ -89,6 +91,11 @@ func parseExtensions(e []AnyExtension) ([]config.ExtensionConfig, error) {
 			}
 
 			out = append(out, innerStruct)
+		}
+
+		if !found {
+			return nil, fmt.Errorf("extension number %d contains no extensions; "+
+				"did you forget to set the extension explicitly to an empty dict?", i)
 		}
 	}
 	return out[:], nil
