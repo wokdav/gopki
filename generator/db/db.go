@@ -18,6 +18,12 @@ import (
 	"github.com/wokdav/gopki/logging"
 )
 
+//TODO: de-couple receiving artifacts from storing them;
+//      maybe a receiver interface and a storage interface?
+//TODO: allow for incremental adding new entities
+//      right now only work with full re-builds when configs are known
+//      but this is not always the case (e.g. when receiving them from a socket)
+
 type UpdateStrategy uint8
 
 const (
@@ -27,16 +33,6 @@ const (
 	UpdateNewerConfig UpdateStrategy = 4
 	UpdateAll         UpdateStrategy = 8
 )
-
-type ConfigStore interface {
-	Put(config.CertificateContent) error
-	Get(string) *config.CertificateContent
-}
-
-type CertStore interface {
-	Put(string, BuildArtifact) error
-	Get(string) *BuildArtifact
-}
 
 type Database interface {
 	Open() error
