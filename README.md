@@ -51,5 +51,8 @@ extensions:
         raw: "!binary:AQIDBA=="
 ```
 
+## Stability
+Once this project reaches v1.0.0 breaking changes shall occur very rarely, if ever and result in a major version increase. However, prior to v1.0.0 breaking changes will occur more frequently as the featureset and design is still fluent. In any case, breaking changes will be denoted in the changelog.
+
 ## Disclaimer
 This software must not be used for certificates in production environments. It makes no effort to generate/store/wipe secrets in a secure way.
