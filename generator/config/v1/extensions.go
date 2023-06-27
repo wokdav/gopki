@@ -50,6 +50,9 @@ type ExtensionType int
 //TODO: Generalize binary into own json file to incorporate NULL etc.
 //TODO: Same goes for generalNames.
 
+//TODO: OCSP-NoCheck extension
+//TODO: Allow whitspace before and after equal sign for RDNs
+
 const (
 	TypeIllegal ExtensionType = iota
 	TypeSubjectKeyIdentifier

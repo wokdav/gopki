@@ -95,3 +95,29 @@ func TestGenerateFail(t *testing.T) {
 		t.Fatalf("this should fail")
 	}
 }
+
+func BenchmarkSimpleGeneration(b *testing.B) {
+	cfg, err := config.ParseConfig(strings.NewReader(
+		"version: 1\nsubject: CN=Test\nextensions:\n  - subjectKeyIdentifier:\n      content: hash\n",
+	))
+	if err != nil {
+		b.Fatal(err.Error())
+	}
+
+	certCfg, ok := cfg.(*config.CertificateContent)
+	if !ok {
+		b.Fatal("cannot parse data as certificate content")
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tbs, err := BuildCertBody(*certCfg, nil, nil)
+		if err != nil {
+			b.Fatal(err.Error())
+		}
+		_, err = tbs.Sign(cert.ECDSAwithSHA1)
+		if err != nil {
+			b.Fatal(err.Error())
+		}
+	}
+}
