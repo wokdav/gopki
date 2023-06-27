@@ -203,7 +203,7 @@ func Update(backend Database, strat UpdateStrategy) (int, error) {
 			issuerCtx = cert.IssuerContext{
 				PrivateKey:   issuerEntity.BuildArtifact.PrivateKey,
 				PublicKeyRaw: issuerEntity.BuildArtifact.Certificate.TBSCertificate.PublicKey.PublicKey.Bytes,
-				IssuerDn:     issuerEntity.BuildArtifact.Certificate.TBSCertificate.Issuer,
+				IssuerDn:     issuerEntity.BuildArtifact.Certificate.TBSCertificate.Subject,
 			}
 		} else {
 			issuerCtx = cert.AsIssuer(*ctx)

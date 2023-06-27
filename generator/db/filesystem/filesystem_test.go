@@ -1110,3 +1110,29 @@ func BenchmarkManyFiles(b *testing.B) {
 		b.Fatal(err.Error())
 	}
 }
+
+func TestBugThreeTiers(t *testing.T) {
+	fsdb := getTestFs(
+		map[string]string{
+			"root.yaml": "version: 1\nsubject: CN=Test Root",
+			"sub.yaml":  "version: 1\nissuer: root\nsubject: CN=Test Sub",
+			"ee.yaml":   "version: 1\nissuer: sub\nsubject: CN=Test Entity",
+		},
+	)
+
+	testdb := NewFilesystemDatabase(fsdb)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	entity := testdb.GetEntity("ee")
+	if entity == nil {
+		t.Fatal("expected entity")
+	}
+
+	issuer := entity.BuildArtifact.Certificate.TBSCertificate.Issuer.String()
+	if issuer != "CN=Test Sub" {
+		t.Fatal("expected issuer to 'CN=Test Sub', got ", issuer)
+	}
+}
