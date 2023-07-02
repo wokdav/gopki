@@ -35,30 +35,30 @@ func TestInit(t *testing.T) {
 
 func TestParseRdn(t *testing.T) {
 	type testVector struct {
-		test      string
-		expectNil bool
+		test          string
+		expectSuccess bool
 	}
 	tests := map[string]testVector{
 		"all": {
 			"C=UK,O=testorg,OU=testunit,CN=commonname,SERIALNUMBER=123,L=city,ST=state,STREET=street,POSTALCODE=457",
-			false,
+			true,
 		},
-		"empty":   {"", true},
-		"unknown": {"MYKEY=value", true},
-		"ws1":     {"CN=my name", false},
-		"ws2":     {"CN=my        name", false},
-		"ws3":     {"    CN    =    my name   ", false},
-		"ws4":     {"    CN    =    my name   ,   L   = looo  ca  ti o n    ", false},
+		"empty":   {"", false},
+		"unknown": {"MYKEY=value", false},
+		"ws1":     {"CN=my name", true},
+		"ws2":     {"CN=my        name", true},
+		"ws3":     {"    CN    =    my name   ", true},
+		"ws4":     {"    CN    =    my name   ,   L   = looo  ca  ti o n    ", true},
+		"ws5":     {"    CN   \t = \r\n   my name   ,   L   = looo  ca  ti o n    ", true},
 	}
 
 	for name, vector := range tests {
+		cfg := V1Configurator{}
 		t.Run(name, func(t *testing.T) {
-			rdn, err := config.ParseRDNSequence(vector.test)
-			if (rdn == nil) != vector.expectNil {
-				t.Errorf("Test '%v': result does not match expectNil (expected: %v)", name, vector.expectNil)
-			}
-			if (rdn == nil) == (err == nil) {
-				t.Errorf("test '%v': expect err to be nil, when return is not nil and vice versa.", name)
+			_, err := cfg.ParseConfiguration(fmt.Sprintf(`{"version":1,"subject":"%v"}`, vector.test))
+
+			if (err == nil) != vector.expectSuccess {
+				t.Errorf("test '%v': expect success=%v, but got err=%v", name, vector.expectSuccess, err)
 			}
 		})
 	}

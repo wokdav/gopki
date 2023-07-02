@@ -49,8 +49,6 @@ type AnyExtension struct {
 //TODO: Generalize binary into own json file to incorporate NULL etc.
 //TODO: Same goes for generalNames.
 
-//TODO: Allow whitspace before and after equal sign for RDNs
-
 func parseExtensions(e []AnyExtension) ([]config.ExtensionConfig, error) {
 	out := make([]config.ExtensionConfig, 0, len(e))
 	for i, ext := range e {
