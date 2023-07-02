@@ -45,28 +45,11 @@ type AnyExtension struct {
 	Override              bool `json:"override"`
 }
 
-type ExtensionType int
-
 //TODO: Handle conversion to cert config instances via interface
 //TODO: Generalize binary into own json file to incorporate NULL etc.
 //TODO: Same goes for generalNames.
 
 //TODO: Allow whitspace before and after equal sign for RDNs
-
-const (
-	TypeIllegal ExtensionType = iota
-	TypeSubjectKeyIdentifier
-	TypeKeyUsage
-	TypeSubjectAltName
-	TypeBasicConstraints
-	TypeCertPolicies
-	TypeAuthInfoAccess
-	TypeAuthKeyId
-	TypeAdmission
-	TypeExtKeyUsage
-	TypeExtOcspNoCheck
-	TypeCustomExtension
-)
 
 func parseExtensions(e []AnyExtension) ([]config.ExtensionConfig, error) {
 	out := make([]config.ExtensionConfig, 0, len(e))
