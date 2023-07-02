@@ -370,6 +370,21 @@
             },
             "additionalProperties": false
         },
+        "ocspNoCheck": {
+            "type": [
+                "object",
+                "null"
+            ],
+            "properties": {
+                "critical": {
+                    "type": "boolean"
+                },
+                "raw": {
+                    "$ref": "extension_rawcontent.json"
+                }
+            },
+            "additionalProperties": false
+        },
         "custom": {
             "type": [
                 "object",
@@ -437,6 +452,11 @@
         {
             "required": [
                 "extendedKeyUsage"
+            ]
+        },
+        {
+            "required": [
+                "ocspNoCheck"
             ]
         },
         {

@@ -1582,5 +1582,39 @@
                 "content": {}
             }
         }
+    },
+    {
+        "expectSuccess": true,
+        "name": "ocspNoCheck",
+        "test": {
+            "ocspNoCheck": {}
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "ocspNoCheckCritical",
+        "test": {
+            "ocspNoCheck": {
+                "critical": true
+            }
+        }
+    },
+    {
+        "expectSuccess": true,
+        "name": "ocspNoCheckRaw",
+        "test": {
+            "ocspNoCheck": {
+                "raw": "!empty"
+            }
+        }
+    },
+    {
+        "expectSuccess": false,
+        "name": "ocspNoCheckNoAdditions",
+        "test": {
+            "ocspNoCheck": {
+                "foo": "bar"
+            }
+        }
     }
 ]

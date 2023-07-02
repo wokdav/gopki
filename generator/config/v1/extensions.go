@@ -39,6 +39,7 @@ type AnyExtension struct {
 	*AuthKeyId            `json:"authorityKeyIdentifier"`
 	*ExtKeyUsage          `json:"extendedKeyUsage"`
 	*AdmissionExtension   `json:"admission"`
+	*OcspNoCheckExtension `json:"ocspNoCheck"`
 	*CustomExtension      `json:"custom"`
 	Optional              bool `json:"optional"`
 	Override              bool `json:"override"`
@@ -50,7 +51,6 @@ type ExtensionType int
 //TODO: Generalize binary into own json file to incorporate NULL etc.
 //TODO: Same goes for generalNames.
 
-//TODO: OCSP-NoCheck extension
 //TODO: Allow whitspace before and after equal sign for RDNs
 
 const (
@@ -64,6 +64,7 @@ const (
 	TypeAuthKeyId
 	TypeAdmission
 	TypeExtKeyUsage
+	TypeExtOcspNoCheck
 	TypeCustomExtension
 )
 
@@ -949,6 +950,43 @@ func (a AdmissionExtension) Builder() (cert.ExtensionBuilder, error) {
 	}
 
 	return config.OverrideNeededBuilder{}, nil
+}
+
+type OcspNoCheckExtension struct {
+	Raw      string `json:"raw"`
+	Critical bool   `json:"critical"`
+}
+
+func (o OcspNoCheckExtension) Oid() (asn1.ObjectIdentifier, error) {
+	oid, ok := cert.GetOid(cert.OidExtensionOcspNoCheck)
+	if !ok {
+		panic("Bug: Extension OID not in bounds!")
+	}
+
+	return oid, nil
+}
+
+func (o OcspNoCheckExtension) Builder() (cert.ExtensionBuilder, error) {
+	if len(o.Raw) == 0 {
+		return config.ConstantBuilder{Extension: cert.NewOcspNoCheck(o.Critical)}, nil
+	} else {
+		oid, ok := cert.GetOid(cert.OidExtensionAdmission)
+		if !ok {
+			panic("Bug: Extension OID not in bounds!")
+		}
+
+		b, err := readRawString(o.Raw)
+		if err != nil {
+			return nil, err
+		}
+		return config.ConstantBuilder{
+			Extension: pkix.Extension{
+				Id:       oid,
+				Critical: o.Critical,
+				Value:    b,
+			},
+		}, nil
+	}
 }
 
 // JSON/YAML representation for this custom extensions.

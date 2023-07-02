@@ -25,6 +25,7 @@ const (
 	OidExtensionAuthorityInfoAccess
 	OidExtensionCRLNumber
 	OidExtensionAdmission
+	OidExtensionOcspNoCheck
 	oidExtensionLen
 )
 
@@ -41,6 +42,7 @@ var (
 	oidExtensionAuthorityInfoAccess   = []int{1, 3, 6, 1, 5, 5, 7, 1, 1}
 	oidExtensionCRLNumber             = []int{2, 5, 29, 20}
 	oidExtensionAdmission             = []int{1, 3, 36, 8, 3, 3}
+	oidExtensionOcspNoCheck           = []int{1, 3, 6, 1, 5, 5, 7, 48, 1, 5}
 )
 
 var oids []asn1.ObjectIdentifier = []asn1.ObjectIdentifier{
@@ -56,6 +58,7 @@ var oids []asn1.ObjectIdentifier = []asn1.ObjectIdentifier{
 	oidExtensionAuthorityInfoAccess,
 	oidExtensionCRLNumber,
 	oidExtensionAdmission,
+	oidExtensionOcspNoCheck,
 }
 
 // Returns the appropriate OID object. If the provided
@@ -659,4 +662,23 @@ func NewAdmissionFromProfessionItems(critical bool, professionItems []string, pr
 	}
 
 	return NewAdmission(critical, adm)
+}
+
+var ocspNoCheck pkix.Extension = pkix.Extension{
+	Id:       oidExtensionOcspNoCheck,
+	Critical: false,
+	Value:    []byte{0x05, 0x00},
+}
+
+var ocspNoCheckCritical pkix.Extension = pkix.Extension{
+	Id:       oidExtensionOcspNoCheck,
+	Critical: true,
+	Value:    []byte{0x05, 0x00},
+}
+
+func NewOcspNoCheck(critical bool) pkix.Extension {
+	if critical {
+		return ocspNoCheckCritical
+	}
+	return ocspNoCheck
 }

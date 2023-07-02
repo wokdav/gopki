@@ -1195,6 +1195,18 @@ func TestAdmissionMinimumViable(t *testing.T) {
 	}
 }
 
+func TestOcspNoCheckCritical(t *testing.T) {
+	extExpect := pkix.Extension{
+		Id:       asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 48, 1, 5},
+		Critical: true,
+		Value:    []byte{0x05, 0x00},
+	}
+	buildAndCompare(OcspNoCheckExtension{Critical: true}, extExpect, t)
+
+	extExpect.Critical = false
+	buildAndCompare(OcspNoCheckExtension{Critical: false}, extExpect, t)
+}
+
 func TestEmptyExtensionList(t *testing.T) {
 	_, err := parseExtensions([]AnyExtension{
 		{},

@@ -239,6 +239,12 @@ extensions:
           - emailProtection
           - timeStamping
           - OCSPSigning
+    #######################
+    # RFC 6960 Extensions #
+    #######################
+    # typically just an empty object
+    - ocspNoCheck: {}
+
     #####################################################################################
     # CommonPKI Extensions                                                              #
     # It is discontinued, but still used in some enterprise and government applications #
