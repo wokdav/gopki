@@ -39,17 +39,32 @@ func TestParseRdn(t *testing.T) {
 		expectSuccess bool
 	}
 	tests := map[string]testVector{
+		"good":  {"C=DE, CN=MyCert", true},
+		"good2": {"C=DE,CN=MyCert", true},
+		"good3": {"C=DE ,CN=MyCert", true},
+		"good4": {"C=DE , CN=MyCert", true},
+		"good5": {"C=DE , CN=MyCert, O=MyOrg", true},
+		"good6": {"C=DE", true},
 		"all": {
 			"C=UK,O=testorg,OU=testunit,CN=commonname,SERIALNUMBER=123,L=city,ST=state,STREET=street,POSTALCODE=457",
 			true,
 		},
+		"ws1": {"CN=my name", true},
+		"ws2": {"CN=my        name", true},
+		"ws3": {"    CN    =    my name   ", true},
+		"ws4": {"    CN    =    my name   ,   L   = looo  ca  ti o n    ", true},
+		"ws5": {"    CN   \t = \r\n   my name   ,   L   = looo  ca  ti o n    ", true},
+
 		"empty":   {"", false},
 		"unknown": {"MYKEY=value", false},
-		"ws1":     {"CN=my name", true},
-		"ws2":     {"CN=my        name", true},
-		"ws3":     {"    CN    =    my name   ", true},
-		"ws4":     {"    CN    =    my name   ,   L   = looo  ca  ti o n    ", true},
-		"ws5":     {"    CN   \t = \r\n   my name   ,   L   = looo  ca  ti o n    ", true},
+		"bad1":    {"C=,CN=MyCert", false},
+		"bad2":    {"=DE,CN=MyCert", false},
+		"bad3":    {"C=D,E, CN=MyCert", false},
+		"bad4":    {"C=DE,", false},
+		"bad5":    {",C=DE", false},
+		"bad6":    {"=", false},
+		"bad7":    {",", false},
+		"bad8":    {"=,=", false},
 	}
 
 	for name, vector := range tests {

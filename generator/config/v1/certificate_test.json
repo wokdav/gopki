@@ -87,127 +87,7 @@
         "expectSuccess": false
     },
     {
-        "name": "subjectGood1",
-        "test": {
-            "version": 1,
-            "subject": "C=DE, CN=MyCert"
-        },
-        "expectSuccess": true
-    },
-    {
-        "name": "subjectGood2",
-        "test": {
-            "version": 1,
-            "subject": "C=DE,CN=MyCert"
-        },
-        "expectSuccess": true
-    },
-    {
-        "name": "subjectGood3",
-        "test": {
-            "version": 1,
-            "subject": "C=DE ,CN=MyCert"
-        },
-        "expectSuccess": true
-    },
-    {
-        "name": "subjectGood4",
-        "test": {
-            "version": 1,
-            "subject": "C=DE , CN=MyCert"
-        },
-        "expectSuccess": true
-    },
-    {
-        "name": "subjectGood5",
-        "test": {
-            "version": 1,
-            "subject": "C=DE , CN=MyCert, O=MyOrg"
-        },
-        "expectSuccess": true
-    },
-    {
-        "name": "subjectGood6",
-        "test": {
-            "version": 1,
-            "subject": "C=DE"
-        },
-        "expectSuccess": true
-    },
-    {
         "name": "subjectBad1",
-        "test": {
-            "version": 1,
-            "subject": "C=,CN=MyCert"
-        },
-        "expectSuccess": false
-    },
-    {
-        "name": "subjectBad2",
-        "test": {
-            "version": 1,
-            "subject": "=DE,CN=MyCert"
-        },
-        "expectSuccess": false
-    },
-    {
-        "name": "subjectBad3",
-        "test": {
-            "version": 1,
-            "subject": "C = DE"
-        },
-        "expectSuccess": false
-    },
-    {
-        "name": "subjectBad4",
-        "test": {
-            "version": 1,
-            "subject": "C=D,E, CN=MyCert"
-        },
-        "expectSuccess": false
-    },
-    {
-        "name": "subjectBad5",
-        "test": {
-            "version": 1,
-            "subject": "C=DE,"
-        },
-        "expectSuccess": false
-    },
-    {
-        "name": "subjectBad6",
-        "test": {
-            "version": 1,
-            "subject": ",C=DE"
-        },
-        "expectSuccess": false
-    },
-    {
-        "name": "subjectBad7",
-        "test": {
-            "version": 1,
-            "subject": "="
-        },
-        "expectSuccess": false
-    },
-    {
-        "name": "subjectBad8",
-        "test": {
-            "version": 1,
-            "subject": ","
-        },
-        "expectSuccess": false
-    },
-    {
-        "name": "subjectBad9",
-        "test": {
-            "version": 1,
-            "subject": "=,="
-        },
-        "expectSuccess": false
-    },
-    {
-        "name": "subjectBad10",
         "test": {
             "version": 1,
             "subject": {
@@ -221,7 +101,7 @@
         "expectSuccess": false
     },
     {
-        "name": "subjectBad11",
+        "name": "subjectBad2",
         "test": {
             "version": 1,
             "subject": {}
