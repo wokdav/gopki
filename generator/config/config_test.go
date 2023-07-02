@@ -393,6 +393,7 @@ func TestParseRdnSequence(t *testing.T) {
 		{"CN=Test,O=TestO,OU=TestOU,CN=TestCN,SERIALNUMBER=123," +
 			"L=TestL,ST=TestST,STREET=TestSTREET,POSTALCODE=TestPOSTALCODE", ""},
 		{"1.2.3.4=TestOid", "1.2.3.4=#1307546573744f6964"},
+		{"CN=#130454657374", "CN=Test"},
 		{`CN=Test\,Comma\,Escape`, `CN=Test\\\,Comma\\\,Escape`},
 		{`CN="`, `CN=\"`},
 		{`CN=<`, `CN=\<`},

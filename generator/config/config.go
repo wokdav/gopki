@@ -24,10 +24,12 @@ import (
 	"crypto/sha1"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"time"
 
@@ -235,6 +237,8 @@ var attributeTypeNames = map[string]asn1.ObjectIdentifier{
 	"POSTALCODE":   {2, 5, 4, 17},
 }
 
+var rxBinaryAttribute = regexp.MustCompile(`^#[0-9a-fA-F]+$`)
+
 // Parses the string representation of a Relative Distinguished Name.
 // The underlying data structure will be in reverse order so that it
 // conforms to RFC4514#section-2.1. It supports custom OID attributes.
@@ -288,10 +292,39 @@ func ParseRDNSequence(s string) (pkix.RDNSequence, error) {
 		if outIndex < 0 || outIndex >= len(out) {
 			return nil, fmt.Errorf("config: can't write to index %d, we only have 0-%d", outIndex, len(out))
 		}
+
+		var valueString string = parts[1]
+
+		if rxBinaryAttribute.MatchString(parts[1]) {
+			//this is a binary attribute, so we need to decode it
+			decoded, err := hex.DecodeString(parts[1][1:])
+			if err != nil {
+				return nil, fmt.Errorf("config: attribute '%v' is not a valid hex string, although it has a # sign", parts[1])
+			}
+
+			if decoded[0] != 0x13 {
+				out[len(out)-i-1] = pkix.RelativeDistinguishedNameSET{
+					pkix.AttributeTypeAndValue{
+						Type:  oid,
+						Value: decoded,
+					},
+				}
+				continue
+			}
+
+			var s string
+			_, err = asn1.Unmarshal(decoded, &s)
+			if err != nil {
+				return nil, fmt.Errorf("config: attribute '%v' is not a valid string", parts[1])
+			}
+
+			valueString = s
+		}
+
 		out[len(out)-i-1] = pkix.RelativeDistinguishedNameSET{
 			pkix.AttributeTypeAndValue{
 				Type:  oid,
-				Value: parts[1],
+				Value: valueString,
 			},
 		}
 	}

@@ -45,6 +45,7 @@ func TestParseRdn(t *testing.T) {
 		"good4": {"C=DE , CN=MyCert", true},
 		"good5": {"C=DE , CN=MyCert, O=MyOrg", true},
 		"good6": {"C=DE", true},
+		"good7": {"C=DE,CN=#4D7943657274", true},
 		"all": {
 			"C=UK,O=testorg,OU=testunit,CN=commonname,SERIALNUMBER=123,L=city,ST=state,STREET=street,POSTALCODE=457",
 			true,
