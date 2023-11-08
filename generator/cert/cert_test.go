@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"fmt"
+	"reflect"
 	"regexp"
 	"testing"
 	"time"
@@ -460,5 +461,40 @@ func TestReadAllPemTypes(t *testing.T) {
 
 	if out.Request == nil {
 		t.Fatal("this should return a request")
+	}
+}
+
+// ensure that all configured curves are actually supported
+func TestHandleAllKeyTypes(t *testing.T) {
+	ctx := NewCertificateContext(nil, nil, time.Now(), time.Now().Add(testduration))
+	for i := 0; i < int(KEY_ALG_LEN); i++ {
+		t.Run(fmt.Sprintf("KeyAlgorithm=%d", i), func(t *testing.T) {
+			// skip large rsa keys to speed up testing
+			if i > int(RSA1024) && i <= int(RSA8192) {
+				t.SkipNow()
+			}
+
+			err := ctx.GeneratePrivateKey(KeyAlgorithm(i))
+			if err != nil {
+				t.Fatal(err.Error())
+			}
+
+			w := bytes.Buffer{}
+			err = WritePrivateKeyToPem(ctx.PrivateKey, &w)
+			if err != nil {
+				t.Fatal(err.Error())
+			}
+
+			pem, err := ReadPem(w.Bytes())
+			if err != nil {
+				t.Fatal(err.Error())
+			}
+
+			if !reflect.DeepEqual(pem.PrivateKey, ctx.PrivateKey) {
+				t.Errorf("Got      %#v", pem.PrivateKey)
+				t.Errorf("Expected %#v", ctx.PrivateKey)
+				t.Fatal("These keys are different, but shouldnt be")
+			}
+		})
 	}
 }
