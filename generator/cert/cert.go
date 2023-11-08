@@ -141,6 +141,226 @@ var (
 	}
 )
 
+// ecPrivateKey reflects an ASN.1 Elliptic Curve Private Key Structure.
+// References:
+//
+//	RFC 5915
+//	SEC1 - http://www.secg.org/sec1-v2.pdf
+//
+// Per RFC 5915 the NamedCurveOID is marked as ASN.1 OPTIONAL, however in
+// most cases it is not.
+// Taken and adapted from the official x509 package
+type ecPrivateKey struct {
+	Version       int
+	PrivateKey    []byte
+	NamedCurveOID asn1.ObjectIdentifier `asn1:"optional,explicit,tag:0"`
+	PublicKey     asn1.BitString        `asn1:"optional,explicit,tag:1"`
+}
+
+// pkcs8 reflects an ASN.1, PKCS #8 PrivateKey. See
+// ftp://ftp.rsasecurity.com/pub/pkcs/pkcs-8/pkcs-8v1_2.asn
+// and RFC 5208.
+// Taken and adapted from the official x509 package
+type pkcs8 struct {
+	Version    int
+	Algo       pkix.AlgorithmIdentifier
+	PrivateKey []byte
+	// optional attributes omitted.
+}
+
+// Taken and adapted from the official x509 package
+type pkcs1AdditionalRSAPrime struct {
+	Prime *big.Int
+
+	// We ignore these values because rsa will calculate them.
+	Exp   *big.Int
+	Coeff *big.Int
+}
+
+// pkcs1PrivateKey is a structure which mirrors the PKCS #1 ASN.1 for an RSA private key.
+// Taken and adapted from the official x509 package
+type pkcs1PrivateKey struct {
+	Version int
+	N       *big.Int
+	E       int
+	D       *big.Int
+	P       *big.Int
+	Q       *big.Int
+	// We ignore these values, if present, because rsa will calculate them.
+	Dp   *big.Int `asn1:"optional"`
+	Dq   *big.Int `asn1:"optional"`
+	Qinv *big.Int `asn1:"optional"`
+
+	AdditionalPrimes []pkcs1AdditionalRSAPrime `asn1:"optional,omitempty"`
+}
+
+// marshalECPrivateKeyWithOID marshals an EC private key into ASN.1, DER format and
+// sets the curve ID to the given OID, or omits it if OID is nil.
+// Taken and adapted from the official x509 package
+func marshalECPrivateKeyWithOID(key *ecdsa.PrivateKey, oid asn1.ObjectIdentifier) ([]byte, error) {
+	if !key.Curve.IsOnCurve(key.X, key.Y) {
+		return nil, errors.New("invalid elliptic key public key")
+	}
+	privateKey := make([]byte, (key.Curve.Params().N.BitLen()+7)/8)
+	return asn1.Marshal(ecPrivateKey{
+		Version:       1,
+		PrivateKey:    key.D.FillBytes(privateKey),
+		NamedCurveOID: oid,
+		PublicKey:     asn1.BitString{Bytes: elliptic.Marshal(key.Curve, key.X, key.Y)},
+	})
+}
+
+// MarshalPKCS8PrivateKey converts a private key to PKCS #8, ASN.1 DER form.
+//
+// The following key types are currently supported: *rsa.PrivateKey,
+// *ecdsa.PrivateKey, ed25519.PrivateKey (not a pointer), and *ecdh.PrivateKey.
+// Unsupported key types result in an error.
+//
+// This kind of key is commonly encoded in PEM blocks of type "PRIVATE KEY".
+// Taken and adapted from the official x509 package
+func MarshalPKCS8PrivateKey(key any) ([]byte, error) {
+	var privKey pkcs8
+
+	switch k := key.(type) {
+	case *rsa.PrivateKey:
+		privKey.Algo = pkix.AlgorithmIdentifier{
+			Algorithm:  oidRsaEncryption,
+			Parameters: asn1.NullRawValue,
+		}
+		privKey.PrivateKey = x509.MarshalPKCS1PrivateKey(k)
+
+	case *ecdsa.PrivateKey:
+		oid, ok := curveNameOids[k.Curve.Params().Name]
+		if !ok {
+			return nil, errors.New("cert: unknown curve while marshaling to PKCS#8")
+		}
+		oidBytes, err := asn1.Marshal(oid)
+		if err != nil {
+			return nil, errors.New("cert: failed to marshal curve OID: " + err.Error())
+		}
+		privKey.Algo = pkix.AlgorithmIdentifier{
+			Algorithm: oidEcPublicKey,
+			Parameters: asn1.RawValue{
+				FullBytes: oidBytes,
+			},
+		}
+		if privKey.PrivateKey, err = marshalECPrivateKeyWithOID(k, nil); err != nil {
+			return nil, errors.New("cert: failed to marshal EC private key while building PKCS#8: " + err.Error())
+		}
+
+	default:
+		return nil, fmt.Errorf("cert: unknown key type while marshaling PKCS#8: %T", key)
+	}
+
+	return asn1.Marshal(privKey)
+}
+
+// Taken and adapted from the official x509 package
+const ecPrivKeyVersion = 1
+
+// parseECPrivateKey parses an ASN.1 Elliptic Curve Private Key Structure.
+// The OID for the named curve may be provided from another source (such as
+// the PKCS8 container) - if it is provided then use this instead of the OID
+// that may exist in the EC private key structure.
+// Taken and adapted from the official x509 package
+func parseECPrivateKey(namedCurveOID *asn1.ObjectIdentifier, der []byte) (key *ecdsa.PrivateKey, err error) {
+	var privKey ecPrivateKey
+	if _, err := asn1.Unmarshal(der, &privKey); err != nil {
+		if _, err := asn1.Unmarshal(der, &pkcs8{}); err == nil {
+			return nil, errors.New("x509: failed to parse private key (use ParsePKCS8PrivateKey instead for this key format)")
+		}
+		if _, err := asn1.Unmarshal(der, &pkcs1PrivateKey{}); err == nil {
+			return nil, errors.New("x509: failed to parse private key (use ParsePKCS1PrivateKey instead for this key format)")
+		}
+		return nil, errors.New("x509: failed to parse EC private key: " + err.Error())
+	}
+	if privKey.Version != ecPrivKeyVersion {
+		return nil, fmt.Errorf("x509: unknown EC private key version %d", privKey.Version)
+	}
+
+	var curve elliptic.Curve
+	if namedCurveOID != nil {
+		curve, err = namedCurveFromOID(*namedCurveOID)
+	} else {
+		curve, err = namedCurveFromOID(privKey.NamedCurveOID)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	k := new(big.Int).SetBytes(privKey.PrivateKey)
+	curveOrder := curve.Params().N
+	if k.Cmp(curveOrder) >= 0 {
+		return nil, errors.New("x509: invalid elliptic curve private key value")
+	}
+	priv := new(ecdsa.PrivateKey)
+	priv.Curve = curve
+	priv.D = k
+
+	privateKey := make([]byte, (curveOrder.BitLen()+7)/8)
+
+	// Some private keys have leading zero padding. This is invalid
+	// according to [SEC1], but this code will ignore it.
+	for len(privKey.PrivateKey) > len(privateKey) {
+		if privKey.PrivateKey[0] != 0 {
+			return nil, errors.New("x509: invalid private key length")
+		}
+		privKey.PrivateKey = privKey.PrivateKey[1:]
+	}
+
+	// Some private keys remove all leading zeros, this is also invalid
+	// according to [SEC1] but since OpenSSL used to do this, we ignore
+	// this too.
+	copy(privateKey[len(privateKey)-len(privKey.PrivateKey):], privKey.PrivateKey)
+	priv.X, priv.Y = curve.ScalarBaseMult(privateKey)
+
+	return priv, nil
+}
+
+// ParsePKCS8PrivateKey parses an unencrypted private key in PKCS #8, ASN.1 DER form.
+//
+// It returns a *[rsa.PrivateKey], an *[ecdsa.PrivateKey], an [ed25519.PrivateKey] (not
+// a pointer), or an *[ecdh.PrivateKey] (for X25519). More types might be supported
+// in the future.
+//
+// This kind of key is commonly encoded in PEM blocks of type "PRIVATE KEY".
+// Taken and adapted from the official x509 package
+func ParsePKCS8PrivateKey(der []byte) (key any, err error) {
+	var privKey pkcs8
+	if _, err := asn1.Unmarshal(der, &privKey); err != nil {
+		if _, err := asn1.Unmarshal(der, &ecPrivateKey{}); err == nil {
+			return nil, errors.New("x509: failed to parse private key (use ParseECPrivateKey instead for this key format)")
+		}
+		if _, err := asn1.Unmarshal(der, &pkcs1PrivateKey{}); err == nil {
+			return nil, errors.New("x509: failed to parse private key (use ParsePKCS1PrivateKey instead for this key format)")
+		}
+		return nil, err
+	}
+	switch {
+	case privKey.Algo.Algorithm.Equal(oidRsaEncryption):
+		key, err = x509.ParsePKCS1PrivateKey(privKey.PrivateKey)
+		if err != nil {
+			return nil, errors.New("x509: failed to parse RSA private key embedded in PKCS#8: " + err.Error())
+		}
+		return key, nil
+
+	case privKey.Algo.Algorithm.Equal(oidEcPublicKey):
+		bytes := privKey.Algo.Parameters.FullBytes
+		namedCurveOID := new(asn1.ObjectIdentifier)
+		if _, err := asn1.Unmarshal(bytes, namedCurveOID); err != nil {
+			namedCurveOID = nil
+		}
+		key, err = parseECPrivateKey(namedCurveOID, privKey.PrivateKey)
+		if err != nil {
+			return nil, errors.New("x509: failed to parse EC private key embedded in PKCS#8: " + err.Error())
+		}
+		return key, nil
+
+	default:
+		return nil, fmt.Errorf("x509: PKCS#8 wrapping contained private key with unknown algorithm: %v", privKey.Algo.Algorithm)
+	}
+}
+
 // Writes the given [cert.Certificate] into a PEM file.
 // For simplicities' sake PEM files are currently assumed
 // to contain only one block.
@@ -172,7 +392,7 @@ func (c Certificate) WritePem(w io.Writer) error {
 // It fails when either [x509.MarshalPKCS8PrivateKey] or [pem.Encode]
 // return an error.
 func WritePrivateKeyToPem(prk crypto.PrivateKey, w io.Writer) error {
-	b, err := x509.MarshalPKCS8PrivateKey(prk)
+	b, err := MarshalPKCS8PrivateKey(prk)
 	if err != nil {
 		return err
 	}
@@ -262,7 +482,7 @@ func ReadPem(pemBytes []byte) (PemFileContent, error) {
 
 		default:
 			if strings.Contains(p.Type, "PRIVATE KEY") {
-				pemFileContent.PrivateKey, err = x509.ParsePKCS8PrivateKey(p.Bytes)
+				pemFileContent.PrivateKey, err = ParsePKCS8PrivateKey(p.Bytes)
 				if err != nil {
 					return pemFileContent, err
 				}
@@ -340,6 +560,7 @@ const (
 	BrainpoolP256t1
 	BrainpoolP384t1
 	BrainpoolP512t1
+	KEY_ALG_LEN // this must always be the last entry
 )
 
 var keyTypes map[KeyAlgorithm]keyType = map[KeyAlgorithm]keyType{
@@ -360,7 +581,7 @@ var keyTypes map[KeyAlgorithm]keyType = map[KeyAlgorithm]keyType{
 }
 
 var curves map[KeyAlgorithm]elliptic.Curve
-var curveOids map[string][]byte
+var curveNameOids map[string]asn1.ObjectIdentifier
 
 func init() {
 	curves = make(map[KeyAlgorithm]elliptic.Curve, 10)
@@ -375,17 +596,44 @@ func init() {
 	curves[BrainpoolP384t1] = brainpool.P384t1()
 	curves[BrainpoolP512t1] = brainpool.P512t1()
 
-	curveOids = make(map[string][]byte, 10)
-	curveOids[curves[P224].Params().Name], _ = asn1.Marshal(oidP224)
-	curveOids[curves[P256].Params().Name], _ = asn1.Marshal(oidP256)
-	curveOids[curves[P384].Params().Name], _ = asn1.Marshal(oidP384)
-	curveOids[curves[P521].Params().Name], _ = asn1.Marshal(oidP521)
-	curveOids[curves[BrainpoolP256r1].Params().Name], _ = asn1.Marshal(oidBrainpoolP256r1)
-	curveOids[curves[BrainpoolP384r1].Params().Name], _ = asn1.Marshal(oidBrainpoolP384r1)
-	curveOids[curves[BrainpoolP512r1].Params().Name], _ = asn1.Marshal(oidBrainpoolP512r1)
-	curveOids[curves[BrainpoolP256t1].Params().Name], _ = asn1.Marshal(oidBrainpoolP256t1)
-	curveOids[curves[BrainpoolP384t1].Params().Name], _ = asn1.Marshal(oidBrainpoolP384t1)
-	curveOids[curves[BrainpoolP512t1].Params().Name], _ = asn1.Marshal(oidBrainpoolP512t1)
+	curveNameOids = make(map[string]asn1.ObjectIdentifier, 10)
+	curveNameOids[curves[P224].Params().Name] = oidP224
+	curveNameOids[curves[P256].Params().Name] = oidP256
+	curveNameOids[curves[P384].Params().Name] = oidP384
+	curveNameOids[curves[P521].Params().Name] = oidP521
+	curveNameOids[curves[BrainpoolP256r1].Params().Name] = oidBrainpoolP256r1
+	curveNameOids[curves[BrainpoolP384r1].Params().Name] = oidBrainpoolP384r1
+	curveNameOids[curves[BrainpoolP512r1].Params().Name] = oidBrainpoolP512r1
+	curveNameOids[curves[BrainpoolP256t1].Params().Name] = oidBrainpoolP256t1
+	curveNameOids[curves[BrainpoolP384t1].Params().Name] = oidBrainpoolP384t1
+	curveNameOids[curves[BrainpoolP512t1].Params().Name] = oidBrainpoolP512t1
+}
+
+func namedCurveFromOID(oid asn1.ObjectIdentifier) (elliptic.Curve, error) {
+	switch {
+	case oid.Equal(oidP224):
+		return curves[P224], nil
+	case oid.Equal(oidP256):
+		return curves[P256], nil
+	case oid.Equal(oidP384):
+		return curves[P384], nil
+	case oid.Equal(oidP521):
+		return curves[P521], nil
+	case oid.Equal(oidBrainpoolP256r1):
+		return curves[BrainpoolP256r1], nil
+	case oid.Equal(oidBrainpoolP384r1):
+		return curves[BrainpoolP384r1], nil
+	case oid.Equal(oidBrainpoolP512r1):
+		return curves[BrainpoolP512r1], nil
+	case oid.Equal(oidBrainpoolP256t1):
+		return curves[BrainpoolP256t1], nil
+	case oid.Equal(oidBrainpoolP384t1):
+		return curves[BrainpoolP384t1], nil
+	case oid.Equal(oidBrainpoolP512t1):
+		return curves[BrainpoolP512t1], nil
+	}
+
+	return nil, fmt.Errorf("cert: unknown curve oid '%v'", oid.String())
 }
 
 var sigAlgOids map[SignatureAlgorithm]asn1.ObjectIdentifier = map[SignatureAlgorithm]asn1.ObjectIdentifier{
@@ -411,12 +659,16 @@ func (ctx *CertificateContext) SetPrivateKey(key crypto.PrivateKey) error {
 
 	ecKey, ok := key.(*ecdsa.PrivateKey)
 	if ok {
-		oid, exists := curveOids[ecKey.Params().Name]
+		oid, exists := curveNameOids[ecKey.Params().Name]
 
 		if !exists {
 			return fmt.Errorf("cert: can't import private key, since the curve '%v' is unknown", ecKey.Params().Name)
 		}
-		_, err := asn1.Unmarshal(oid, &ctx.TbsCertificate.PublicKey.Algorithm.Parameters)
+		oidMarshalled, err := asn1.Marshal(oid)
+		if err != nil {
+			return err
+		}
+		_, err = asn1.Unmarshal(oidMarshalled, &ctx.TbsCertificate.PublicKey.Algorithm.Parameters)
 		if err != nil {
 			return err
 		}
@@ -426,11 +678,16 @@ func (ctx *CertificateContext) SetPrivateKey(key crypto.PrivateKey) error {
 		}
 
 		ctx.TbsCertificate.PublicKey.PublicKey.Bytes = elliptic.Marshal(ecKey.Curve, ecKey.PublicKey.X, ecKey.PublicKey.Y)
-		curveParam, exists := curveOids[ecKey.Params().Name]
+		curveParam, exists := curveNameOids[ecKey.Params().Name]
 		if !exists {
 			return fmt.Errorf("cert: unknown ec key curve: %v", ecKey.Params().Name)
 		}
-		_, err = asn1.Unmarshal(curveParam, &ctx.TbsCertificate.PublicKey.Algorithm.Parameters)
+
+		oidMarshalled, err = asn1.Marshal(curveParam)
+		if err != nil {
+			return err
+		}
+		_, err = asn1.Unmarshal(oidMarshalled, &ctx.TbsCertificate.PublicKey.Algorithm.Parameters)
 		if err != nil {
 			return err
 		}
