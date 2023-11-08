@@ -225,7 +225,10 @@ func Update(backend Database, strat UpdateStrategy) (int, error) {
 		}
 
 		entityObj.LastBuild = time.Now()
-		backend.PutEntity(*entityObj)
+		err = backend.PutEntity(*entityObj)
+		if err != nil {
+			return certsGenerated, err
+		}
 		certsGenerated++
 	}
 
