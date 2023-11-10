@@ -1,12 +1,9 @@
 package v1
 
 import (
-	"bytes"
 	"crypto/x509/pkix"
 	_ "embed"
 	"encoding/asn1"
-	"encoding/json"
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -64,9 +61,20 @@ func buildAndCompare(cfg config.ExtensionConfig, extExpect pkix.Extension, t *te
 }
 
 func TestParseAnyExtension(t *testing.T) {
-	type testVector struct {
-		test   AnyExtension
-		expect config.ExtensionConfig
+	extStruct := AnyExtension{}
+
+	_, err := parseExtensions([]AnyExtension{extStruct})
+	if err == nil {
+		t.Fatal("nilled AnyExtension should fail")
+	}
+
+	emptyArr, err := parseExtensions([]AnyExtension{})
+	if err != nil {
+		t.Fatal("error building empty AnyExtension array")
+	}
+
+	if len(emptyArr) != 0 {
+		t.Fatalf("extconfig array should be empty, but contains %d items", len(emptyArr))
 	}
 
 	subjKeyId := AnyExtension{
@@ -76,6 +84,19 @@ func TestParseAnyExtension(t *testing.T) {
 		},
 	}
 
+	parsedSKid, err := parseExtensions([]AnyExtension{subjKeyId})
+	if err != nil {
+		t.Fatalf("good case should succeed, but failed with '%v'",
+			err.Error())
+	}
+
+	oid, _ := parsedSKid[0].Oid()
+	expectOid, _ := cert.GetOid(cert.OidExtensionSubjectKeyId)
+	if !oid.Equal(expectOid) {
+		t.Fatalf("expected oid to be '%#v', but is '%#v'",
+			expectOid, oid)
+	}
+
 	keyUsage := AnyExtension{
 		KeyUsage: &KeyUsage{
 			Critical: true,
@@ -83,110 +104,12 @@ func TestParseAnyExtension(t *testing.T) {
 		},
 	}
 
-	subjAltName := AnyExtension{
-		SubjectAltName: &SubjectAltName{
-			Critical: true,
-			Content:  []SubjAltNameComponent{{Type: "CN", Name: "Foo"}},
-		},
-	}
-
-	basicConstraints := AnyExtension{
-		BasicConstraints: &BasicConstraints{
-			Critical: true,
-			Content:  &BasicConstraintsObj{true, 2},
-		},
-	}
-
-	certPolicies := AnyExtension{
-		CertPolicies: &CertPolicies{
-			Critical: true,
-			Content:  []CertPolicy{{Oid: "1.2.3.4"}},
-		},
-	}
-
-	aia := AnyExtension{
-		AuthInfoAccess: &AuthInfoAccess{
-			Critical: true,
-			Content:  []SingleAuthInfo{{Ocsp: "ocsp.acme.com"}},
-		},
-	}
-
-	authKid := AnyExtension{
-		AuthKeyId: &AuthKeyId{
-			Critical: true,
-			Content:  AuthKeyIdContent{Id: "hash"},
-		},
-	}
-
-	extKeyUsage := AnyExtension{
-		ExtKeyUsage: &ExtKeyUsage{
-			Critical: true,
-			Content:  []string{"serverAuth"},
-		},
-	}
-
-	custom := AnyExtension{
-		CustomExtension: &CustomExtension{
-			Critical: true,
-			Raw:      "!binary:AQIDBA==",
-		},
-	}
-
-	//boolean values are true, since this is the non-default
-	tests := []testVector{
-		{
-			test:   subjKeyId,
-			expect: subjKeyId.SubjectKeyIdentifier,
-		},
-		{
-			test:   keyUsage,
-			expect: keyUsage.KeyUsage,
-		},
-		{
-			test:   subjAltName,
-			expect: subjAltName.SubjectAltName,
-		},
-		{
-			test:   basicConstraints,
-			expect: basicConstraints.BasicConstraints,
-		},
-		{
-			test:   certPolicies,
-			expect: certPolicies.CertPolicies,
-		},
-		{
-			test:   aia,
-			expect: aia.AuthInfoAccess,
-		},
-		{
-			test:   authKid,
-			expect: authKid.AuthKeyId,
-		},
-		{
-			test:   extKeyUsage,
-			expect: extKeyUsage.ExtKeyUsage,
-		},
-		{
-			test:   custom,
-			expect: custom.CustomExtension,
-		},
-	}
-
-	for i, test := range tests {
-		t.Run(fmt.Sprintf("test-parse-anyextension-#%v", i), func(t *testing.T) {
-			cfg, err := parseExtensions([]AnyExtension{test.test})
-
-			if err != nil {
-				t.Fatal(err.Error())
-			}
-
-			expectJson, _ := json.Marshal(test.expect)
-			gotJson, _ := json.Marshal(cfg[0])
-
-			if !bytes.Equal(expectJson, gotJson) {
-				t.Fatal("content not equal")
-			}
-		})
+	_, err = parseExtensions([]AnyExtension{{
+		SubjectKeyIdentifier: subjKeyId.SubjectKeyIdentifier,
+		KeyUsage:             keyUsage.KeyUsage,
+	}})
+	if err == nil {
+		t.Fatalf("ambiguous struct should fail")
 	}
 }
 

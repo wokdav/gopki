@@ -68,7 +68,13 @@ func parseExtensions(e []AnyExtension) ([]config.ExtensionConfig, error) {
 				continue
 			}
 
+			if found {
+				return nil, fmt.Errorf("field '%v' contains extension, although we already parsed one",
+					innerStructTyp.Name)
+			}
+
 			found = true
+
 			innerStructAny := innerStructValPtr.Elem().Interface()
 			innerStruct, ok := innerStructAny.(config.ExtensionConfig)
 			if !ok {
@@ -83,6 +89,7 @@ func parseExtensions(e []AnyExtension) ([]config.ExtensionConfig, error) {
 				"did you forget to set the extension explicitly to an empty dict?", i)
 		}
 	}
+
 	return out[:], nil
 }
 
