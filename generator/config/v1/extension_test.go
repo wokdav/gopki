@@ -1,9 +1,12 @@
 package v1
 
 import (
+	"bytes"
 	"crypto/x509/pkix"
 	_ "embed"
 	"encoding/asn1"
+	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -57,6 +60,133 @@ func buildAndCompare(cfg config.ExtensionConfig, extExpect pkix.Extension, t *te
 
 	if !reflect.DeepEqual(extExpect, *extGot) {
 		t.Fatalf("expected '%#v', got '%#v'", extExpect, *extGot)
+	}
+}
+
+func TestParseAnyExtension(t *testing.T) {
+	type testVector struct {
+		test   AnyExtension
+		expect config.ExtensionConfig
+	}
+
+	subjKeyId := AnyExtension{
+		SubjectKeyIdentifier: &SubjectKeyIdentifier{
+			Critical: true,
+			Content:  "hash",
+		},
+	}
+
+	keyUsage := AnyExtension{
+		KeyUsage: &KeyUsage{
+			Critical: true,
+			Content:  []string{"digitalSignature", "crlSign"},
+		},
+	}
+
+	subjAltName := AnyExtension{
+		SubjectAltName: &SubjectAltName{
+			Critical: true,
+			Content:  []SubjAltNameComponent{{Type: "CN", Name: "Foo"}},
+		},
+	}
+
+	basicConstraints := AnyExtension{
+		BasicConstraints: &BasicConstraints{
+			Critical: true,
+			Content:  &BasicConstraintsObj{true, 2},
+		},
+	}
+
+	certPolicies := AnyExtension{
+		CertPolicies: &CertPolicies{
+			Critical: true,
+			Content:  []CertPolicy{{Oid: "1.2.3.4"}},
+		},
+	}
+
+	aia := AnyExtension{
+		AuthInfoAccess: &AuthInfoAccess{
+			Critical: true,
+			Content:  []SingleAuthInfo{{Ocsp: "ocsp.acme.com"}},
+		},
+	}
+
+	authKid := AnyExtension{
+		AuthKeyId: &AuthKeyId{
+			Critical: true,
+			Content:  AuthKeyIdContent{Id: "hash"},
+		},
+	}
+
+	extKeyUsage := AnyExtension{
+		ExtKeyUsage: &ExtKeyUsage{
+			Critical: true,
+			Content:  []string{"serverAuth"},
+		},
+	}
+
+	custom := AnyExtension{
+		CustomExtension: &CustomExtension{
+			Critical: true,
+			Raw:      "!binary:AQIDBA==",
+		},
+	}
+
+	//boolean values are true, since this is the non-default
+	tests := []testVector{
+		{
+			test:   subjKeyId,
+			expect: subjKeyId.SubjectKeyIdentifier,
+		},
+		{
+			test:   keyUsage,
+			expect: keyUsage.KeyUsage,
+		},
+		{
+			test:   subjAltName,
+			expect: subjAltName.SubjectAltName,
+		},
+		{
+			test:   basicConstraints,
+			expect: basicConstraints.BasicConstraints,
+		},
+		{
+			test:   certPolicies,
+			expect: certPolicies.CertPolicies,
+		},
+		{
+			test:   aia,
+			expect: aia.AuthInfoAccess,
+		},
+		{
+			test:   authKid,
+			expect: authKid.AuthKeyId,
+		},
+		{
+			test:   extKeyUsage,
+			expect: extKeyUsage.ExtKeyUsage,
+		},
+		{
+			test:   custom,
+			expect: custom.CustomExtension,
+		},
+	}
+
+	for i, test := range tests {
+		t.Run(fmt.Sprintf("test-parse-anyextension-#%v", i), func(t *testing.T) {
+			cfg, err := parseExtensions([]AnyExtension{test.test})
+
+			if err != nil {
+				t.Fatal(err.Error())
+			}
+
+			expectJson, _ := json.Marshal(test.expect)
+			gotJson, _ := json.Marshal(cfg[0])
+
+			if !bytes.Equal(expectJson, gotJson) {
+				t.Fatal("content not equal")
+			}
+		})
 	}
 }
 
