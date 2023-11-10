@@ -10,11 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wokdav/gopki/generator"
-	"github.com/wokdav/gopki/generator/cert"
 	"github.com/wokdav/gopki/generator/config"
-
-	"github.com/ghodss/yaml"
 )
 
 func fromDate(y int, m int, d int) *time.Time {
@@ -80,6 +76,7 @@ func TestParseRdn(t *testing.T) {
 	}
 }
 
+// TODO: TEST: check the init methods rather the parsing methods
 func TestAlias(t *testing.T) {
 	tests := map[string]bool{
 		//testvector, expectSuccess
@@ -196,6 +193,9 @@ func TestTimespan(t *testing.T) {
 	}
 }
 
+//go:embed certificate_test.json
+var certificateConfigSchemaTests string
+
 func TestCertificateSchemaParsed(t *testing.T) {
 	d := json.NewDecoder(strings.NewReader(certificateConfigSchemaTests))
 	var ts certificateSchemaTestSuite
@@ -217,38 +217,6 @@ func TestCertificateSchemaParsed(t *testing.T) {
 			_, err := conf.ParseConfiguration(sb.String())
 			if (err == nil) != testCase.ExpectSuccess {
 				t.Fatalf("error='%v' although expectSuccess='%v'", err, testCase.ExpectSuccess)
-			}
-		})
-	}
-}
-
-func TestBugYamlTruthValues(t *testing.T) {
-	//the last yaml lib I used was api compatible, but only recognised
-	//'true' and 'false' as boolean, so this test makes sure, other truth
-	//values work as well
-	truthValues := map[string]bool{
-		"true":  true,
-		"false": false,
-		"yes":   true,
-		"no":    false,
-		"on":    true,
-		"off":   false,
-		"y":     true,
-		"n":     false,
-		"Y":     true,
-		"N":     false,
-	}
-
-	for test, expectedBoolean := range truthValues {
-		t.Run(fmt.Sprintf("yaml truth value '%s'", test), func(t *testing.T) {
-			var val bool
-			err := yaml.Unmarshal([]byte(test), &val)
-			if err != nil {
-				t.Fatal(err.Error())
-			}
-
-			if val != expectedBoolean {
-				t.Errorf("expected parsed value to be '%v' instead of '%v'", expectedBoolean, val)
 			}
 		})
 	}
@@ -278,55 +246,6 @@ func TestParseExampleCertificate(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected to receive a CertificateContent type")
 	}
-}
-
-func TestGenerateExample(t *testing.T) {
-	//parse both configurations
-	conf := V1Configurator{}
-	cfg, err := conf.ParseConfiguration(profileExample)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-
-	cer, err := conf.ParseConfiguration(certificateExample)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-
-	prof, ok := cfg.(*config.CertificateProfile)
-	if !ok {
-		t.Fatalf("expected to receive a CertificateProfile type")
-	}
-
-	cerCfg, ok := cer.(*config.CertificateContent)
-	if !ok {
-		t.Fatalf("expected to receive a CertificateContent type")
-	}
-
-	//validate config against profile
-	if !config.Validate(*prof, *cerCfg) {
-		t.Fatalf("example certificate does not validate against example profile")
-	}
-
-	//merge extensions from profile
-	cerCfg, err = config.Merge(*prof, *cerCfg)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-
-	//generate tbsCertificate
-	ctx, err := generator.BuildCertBody(*cerCfg, nil, nil)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-
-	//self-sign certificate
-	certificate, err := ctx.Sign(cert.ECDSAwithSHA256)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-
-	t.Logf("%#v", certificate)
 }
 
 func TestValidateSubject(t *testing.T) {

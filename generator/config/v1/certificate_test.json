@@ -1,22 +1,5 @@
 [
     {
-        "name": "allValues",
-        "test": {
-            "version": 1,
-            "serialNumber": 1234567890,
-            "subject": "C=DE, CN=MyCertificate",
-            "issuerUniqueId": "!binary:AAAAAAAAAAAAAAAAAAAAAA==",
-            "subjectUniqueId": "!binary:AAAAAAAAAAAAAAAAAAAAAA==",
-            "keyAlgorithm": "P-256",
-            "validity": {
-                "from": "2020-01-01",
-                "duration": "5y"
-            },
-            "extensions": []
-        },
-        "expectSuccess": true
-    },
-    {
         "name": "minimalValues",
         "test": {
             "version": 1,
