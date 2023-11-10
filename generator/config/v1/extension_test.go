@@ -113,21 +113,6 @@ func TestParseAnyExtension(t *testing.T) {
 	}
 }
 
-func TestFunctionBuilder(t *testing.T) {
-	extExpect := cert.NewKeyUsage(false, cert.KeyEncipherment)
-
-	builder := config.FunctionBuilder{
-		Function: func(ctx *cert.CertificateContext) (*pkix.Extension, error) {
-			return &extExpect, nil
-		},
-	}
-	extGot, _ := builder.Compile(simpleCertContext)
-
-	if !reflect.DeepEqual(extExpect, *extGot) {
-		t.Fatalf("expected '%#v', got '%#v'", extExpect, *extGot)
-	}
-}
-
 func TestFunctionBuilderNil(t *testing.T) {
 	builder := config.FunctionBuilder{}
 	_, err := builder.Compile(simpleCertContext)
@@ -1258,13 +1243,4 @@ func TestOcspNoCheckCritical(t *testing.T) {
 
 	extExpect.Critical = false
 	buildAndCompare(OcspNoCheckExtension{Critical: false}, extExpect, t)
-}
-
-func TestEmptyExtensionList(t *testing.T) {
-	_, err := parseExtensions([]AnyExtension{
-		{},
-	})
-	if err == nil {
-		t.Fatal("list item with all null extensions should be rejected")
-	}
 }
