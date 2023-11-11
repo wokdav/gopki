@@ -132,7 +132,7 @@ var (
 
 var (
 	defaultRandom  *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
-	snMax          *big.Int   = big.NewInt(0).Exp(big.NewInt(2), big.NewInt(16), big.NewInt(0))
+	snMax          *big.Int   = big.NewInt(0).Exp(big.NewInt(2), big.NewInt(8*20), big.NewInt(0))
 	defaultSubject            = pkix.RDNSequence{
 		pkix.RelativeDistinguishedNameSET{
 			pkix.AttributeTypeAndValue{
