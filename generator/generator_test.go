@@ -1,11 +1,11 @@
 package generator
 
 import (
-	"strings"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"testing"
 	"time"
 
-	"github.com/wokdav/gopki/generator/cert"
 	"github.com/wokdav/gopki/generator/config"
 	v1 "github.com/wokdav/gopki/generator/config/v1"
 )
@@ -20,61 +20,62 @@ func init() {
 	}
 }
 
-func contextFromConfig(s string) (*cert.CertificateContext, error) {
-	cfg, err := config.ParseConfig(strings.NewReader(s))
-	if err != nil {
-		return nil, err
-	}
-
-	certCfg := cfg.(*config.CertificateContent)
-
-	ctx, err := BuildCertBody(*certCfg, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return ctx, nil
+var dummySubject pkix.RDNSequence = pkix.RDNSequence{
+	pkix.RelativeDistinguishedNameSET{
+		pkix.AttributeTypeAndValue{
+			Type:  asn1.ObjectIdentifier{2, 5, 4, 3},
+			Value: "Dummy Certificate"}},
 }
 
 func TestGenerateMinimal(t *testing.T) {
-	cert, err := contextFromConfig("version: 1\nsubject: C=DE, CN=MyCertificate")
-	if err != nil || cert == nil {
-		t.Fatalf("error happened (%v) or cert is null", err)
+	cfg := config.CertificateContent{
+		Subject: dummySubject,
 	}
 
-	//remember: string representations are reversed
-	expected := "C=DE,CN=MyCertificate"
-	if cert.TbsCertificate.Subject.String() != expected {
-		t.Fatalf("unexpected subject name. expected '%v', got '%v'",
-			expected, cert.TbsCertificate.Subject.String())
-	}
-}
-
-func TestGenerateExtensions(t *testing.T) {
-	cert, err := contextFromConfig("version: 1\nsubject: CN=Test\nextensions:\n  - subjectKeyIdentifier:\n      content: hash\n")
-	if err != nil || cert == nil {
-		t.Fatalf("error happened (%v) or cert is null", err)
-	}
-}
-
-func TestGenerateExtensionsFail(t *testing.T) {
-	cfg, err := config.ParseConfig(strings.NewReader(
-		"version: 1\nsubject: CN=Test\nextensions:\n  - subjectKeyIdentifier:\n      content: hash\n",
-	))
+	ctx, err := BuildCertBody(cfg, nil, nil)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	certCfg, ok := cfg.(*config.CertificateContent)
-	if !ok {
-		t.Fatal("cannot parse data as certificate")
+	//remember: string representations are reversed
+	expected := "CN=Dummy Certificate"
+	if ctx.TbsCertificate.Subject.String() != expected {
+		t.Fatalf("unexpected subject name. expected '%v', got '%v'",
+			expected, ctx.TbsCertificate.Subject.String())
+	}
+}
+
+func TestGenerateExtensions(t *testing.T) {
+	cfg := config.CertificateContent{
+		Subject: dummySubject,
+		Extensions: []config.ExtensionConfig{
+			v1.SubjectKeyIdentifier{
+				Content: "hash",
+			},
+		},
 	}
 
-	subjkeyid := certCfg.Extensions[0].(v1.SubjectKeyIdentifier)
-	subjkeyid.Raw = "!binary:AQIDBA=="
-	certCfg.Extensions[0] = subjkeyid
+	ctx, err := BuildCertBody(cfg, nil, nil)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
-	_, err = BuildCertBody(*certCfg, nil, nil)
+	if len(ctx.Extensions) != 1 {
+		t.Fatalf("expected 1 extension, got %d", len(ctx.Extensions))
+	}
+}
+
+func TestGenerateExtensionsFail(t *testing.T) {
+	cfg := config.CertificateContent{
+		Subject: dummySubject,
+		Extensions: []config.ExtensionConfig{
+			v1.SubjectKeyIdentifier{
+				Content: "😂👌",
+			},
+		},
+	}
+
+	_, err := BuildCertBody(cfg, nil, nil)
 	if err == nil {
 		t.Fatal("this should fail")
 	}
@@ -93,31 +94,5 @@ func TestGenerateFail(t *testing.T) {
 	_, err := BuildCertBody(c, nil, nil)
 	if err == nil {
 		t.Fatalf("this should fail")
-	}
-}
-
-func BenchmarkSimpleGeneration(b *testing.B) {
-	cfg, err := config.ParseConfig(strings.NewReader(
-		"version: 1\nsubject: CN=Test\nextensions:\n  - subjectKeyIdentifier:\n      content: hash\n",
-	))
-	if err != nil {
-		b.Fatal(err.Error())
-	}
-
-	certCfg, ok := cfg.(*config.CertificateContent)
-	if !ok {
-		b.Fatal("cannot parse data as certificate content")
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		tbs, err := BuildCertBody(*certCfg, nil, nil)
-		if err != nil {
-			b.Fatal(err.Error())
-		}
-		_, err = tbs.Sign(cert.ECDSAwithSHA1)
-		if err != nil {
-			b.Fatal(err.Error())
-		}
 	}
 }
