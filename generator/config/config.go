@@ -221,7 +221,7 @@ type ExtensionProfile struct {
 // The builder function is there so that the [cert]
 // package can build the extension iteself.
 type ExtensionConfig interface {
-	Oid() (asn1.ObjectIdentifier, error)
+	Oid() asn1.ObjectIdentifier
 	Builder() (cert.ExtensionBuilder, error)
 }
 
@@ -464,10 +464,6 @@ func Merge(profile CertificateProfile, content CertificateContent) (*Certificate
 	certExtsOverridden := make([]int, 0, len(content.Extensions))
 	for _, profExtOuter := range profile.Extensions {
 		profExt := profExtOuter.ExtensionConfig
-		oidProf, err := profExt.Oid()
-		if err != nil {
-			return nil, err
-		}
 
 		handled := false
 		for i, certExt := range content.Extensions {
@@ -484,12 +480,7 @@ func Merge(profile CertificateProfile, content CertificateContent) (*Certificate
 				continue
 			}
 
-			oidContent, err := certExt.Oid()
-			if err != nil {
-				return nil, err
-			}
-
-			if oidProf.Equal(oidContent) {
+			if profExt.Oid().Equal(certExt.Oid()) {
 				handled = true
 				certExtsHandled = append(certExtsHandled, i)
 

@@ -235,8 +235,8 @@ type testExt struct {
 	asn1.ObjectIdentifier
 }
 
-func (t testExt) Oid() (asn1.ObjectIdentifier, error) {
-	return t.ObjectIdentifier, nil
+func (t testExt) Oid() asn1.ObjectIdentifier {
+	return t.ObjectIdentifier
 }
 
 func (t testExt) ContentEquals(other ExtensionConfig) bool {

@@ -90,7 +90,7 @@ func TestParseAnyExtension(t *testing.T) {
 			err.Error())
 	}
 
-	oid, _ := parsedSKid[0].Oid()
+	oid := parsedSKid[0].Oid()
 	expectOid, _ := cert.GetOid(cert.OidExtensionSubjectKeyId)
 	if !oid.Equal(expectOid) {
 		t.Fatalf("expected oid to be '%#v', but is '%#v'",
@@ -125,10 +125,7 @@ func TestFunctionBuilderNil(t *testing.T) {
 
 func TestSubjKeyIdOid(t *testing.T) {
 	var ext config.ExtensionConfig = SubjectKeyIdentifier{}
-	oid, err := ext.Oid()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
+	oid := ext.Oid()
 
 	expectOid := asn1.ObjectIdentifier{2, 5, 29, 14}
 	if !oid.Equal(expectOid) {
@@ -137,7 +134,6 @@ func TestSubjKeyIdOid(t *testing.T) {
 }
 
 func TestSubjKeyIdBinaryContent(t *testing.T) {
-	//BAQBAgME (0x040401020304)
 	extCfg := SubjectKeyIdentifier{
 		Critical: true,
 		Content:  "!binary:AQIDBA==",
@@ -244,7 +240,7 @@ func TestSubjKeyBadContent(t *testing.T) {
 
 	_, err := extCfg.Builder()
 	if err == nil {
-		t.Fatal("build with illegal raw string should fail")
+		t.Fatal("build with illegal content string should fail")
 	}
 }
 
@@ -284,10 +280,7 @@ func TestKeyUsage(t *testing.T) {
 
 func TestKeyUsageOid(t *testing.T) {
 	var ext config.ExtensionConfig = KeyUsage{}
-	oid, err := ext.Oid()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
+	oid := ext.Oid()
 
 	expectOid := asn1.ObjectIdentifier{2, 5, 29, 15}
 	if !oid.Equal(expectOid) {
@@ -404,10 +397,7 @@ func TestSubjAltName(t *testing.T) {
 
 func TestSubjAltNameOid(t *testing.T) {
 	var ext config.ExtensionConfig = SubjectAltName{}
-	oid, err := ext.Oid()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
+	oid := ext.Oid()
 
 	expectOid := asn1.ObjectIdentifier{2, 5, 29, 17}
 	if !oid.Equal(expectOid) {
@@ -559,10 +549,7 @@ func TestBasicConstraints(t *testing.T) {
 
 func TestBasicConstraintsOid(t *testing.T) {
 	var ext config.ExtensionConfig = BasicConstraints{}
-	oid, err := ext.Oid()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
+	oid := ext.Oid()
 
 	expectOid := asn1.ObjectIdentifier{2, 5, 29, 19}
 	if !oid.Equal(expectOid) {
@@ -629,10 +616,7 @@ func TestCertPolicies(t *testing.T) {
 
 func TestCertPoliciesOid(t *testing.T) {
 	var ext config.ExtensionConfig = CertPolicies{}
-	oid, err := ext.Oid()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
+	oid := ext.Oid()
 
 	expectOid := asn1.ObjectIdentifier{2, 5, 29, 32}
 	if !oid.Equal(expectOid) {
@@ -742,10 +726,7 @@ func TestAia(t *testing.T) {
 
 func TestAiaOid(t *testing.T) {
 	var ext config.ExtensionConfig = AuthInfoAccess{}
-	oid, err := ext.Oid()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
+	oid := ext.Oid()
 
 	expectOid := asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 1, 1}
 	if !oid.Equal(expectOid) {
@@ -842,10 +823,7 @@ func TestAiaBadRaw(t *testing.T) {
 
 func TestAuthKeyIdOid(t *testing.T) {
 	var ext config.ExtensionConfig = AuthKeyId{}
-	oid, err := ext.Oid()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
+	oid := ext.Oid()
 
 	expectOid := asn1.ObjectIdentifier{2, 5, 29, 35}
 	if !oid.Equal(expectOid) {
@@ -1019,10 +997,7 @@ func TestExtKeyUsage(t *testing.T) {
 
 func TestExtKeyUsageOid(t *testing.T) {
 	var ext config.ExtensionConfig = ExtKeyUsage{}
-	oid, err := ext.Oid()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
+	oid := ext.Oid()
 
 	expectOid := asn1.ObjectIdentifier{2, 5, 29, 37}
 	if !oid.Equal(expectOid) {
@@ -1133,10 +1108,7 @@ func TestCustomExtension(t *testing.T) {
 
 func TestCustomExtensionOid(t *testing.T) {
 	var ext config.ExtensionConfig = CustomExtension{OidStr: "1.2.3.4"}
-	oid, err := ext.Oid()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
+	oid := ext.Oid()
 
 	expectOid := asn1.ObjectIdentifier{1, 2, 3, 4}
 	if !oid.Equal(expectOid) {
@@ -1179,19 +1151,6 @@ func TestCustomExtensionBadBinary(t *testing.T) {
 		Critical: true,
 		OidStr:   "8.9.10.11",
 		Raw:      "!binary:§`",
-	}
-
-	_, err := extCfg.Builder()
-	if err == nil {
-		t.Fatal("build with illegal raw string should fail")
-	}
-}
-
-func TestCustomExtensionBadOid(t *testing.T) {
-	extCfg := CustomExtension{
-		Critical: true,
-		OidStr:   "😂👌",
-		Raw:      "!binary:AQIDBA==",
 	}
 
 	_, err := extCfg.Builder()

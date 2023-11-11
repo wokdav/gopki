@@ -71,6 +71,15 @@ func GetOid(i ExtensionOid) (asn1.ObjectIdentifier, bool) {
 	return oids[i], true
 }
 
+func ExpectOid(i ExtensionOid) asn1.ObjectIdentifier {
+	oid, ok := GetOid(i)
+	if !ok {
+		panic("Bug: Extension OID not in bounds!")
+	}
+
+	return oid
+}
+
 func partialMarshallStruct(in any, offset uint, len uint) ([]byte, error) {
 	ty := reflect.TypeOf(in)
 	if ty.Kind() != reflect.Struct {

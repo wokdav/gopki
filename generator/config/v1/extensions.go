@@ -134,6 +134,96 @@ func (g GeneralName) convert() (cert.GeneralName, error) {
 
 }
 
+// Handles common tasks for (almost) all extensions.
+// Calling this method ensures that Raw and Binary values
+// are properly handled, if necessary. After that, only
+// special handling regarding the Content have to be made
+// If the extension was handled, a builder is returned.
+// If the extension must be handled separately, nil is returned.
+func commonExtensionHandler(extStruct any) (cert.ExtensionBuilder, error) {
+	if reflect.ValueOf(extStruct).Kind() != reflect.Struct {
+		return nil, fmt.Errorf("object is not a struct")
+	}
+	//raw and content exist?
+	extStructVal := reflect.ValueOf(extStruct)
+	rawVal := extStructVal.FieldByName("Raw")
+	ctVal := extStructVal.FieldByName("Content")
+
+	//ensure that raw exists
+	kind := rawVal.Kind()
+	if kind != reflect.String {
+		return nil, errors.New("no 'raw String' field. illegal struct")
+	}
+
+	//get content, if it exists
+	var ctStr = ""
+	if ctVal.Kind() == reflect.String {
+		ctStr = ctVal.String()
+	}
+
+	ctExists := ctVal.Kind() != reflect.Invalid && !ctVal.IsZero()
+
+	rawStr := rawVal.String()
+
+	//both empty? error
+	if len(rawStr) == 0 && !ctExists {
+		return config.OverrideNeededBuilder{}, nil
+	}
+
+	//both set? error
+	if len(rawStr) > 0 && ctExists {
+		return nil, errors.New("both 'raw' and 'content are set")
+	}
+
+	//fetch critical flag
+	critVal := extStructVal.FieldByName("Critical")
+	if critVal.Kind() != reflect.Bool {
+		return nil, errors.New("no 'Critical bool' value. illegal struct")
+	}
+
+	//cast to interface to access oid
+	var extPointer any = extStruct
+	castedExtConfig, ok := extPointer.(config.ExtensionConfig)
+	if !ok {
+		return nil, errors.New("struct does not implement config.Extconfig. illegal struct")
+	}
+
+	critical := critVal.Bool()
+	//handle raw, if possible
+	if len(rawStr) > 0 {
+		rawBytes, err := readRawString(rawStr)
+		if err != nil {
+			return nil, err
+		}
+
+		return config.ConstantBuilder{
+			Extension: pkix.Extension{
+				Id:       castedExtConfig.Oid(),
+				Critical: critical,
+				Value:    rawBytes,
+			},
+		}, nil
+	}
+
+	//handle content, if possible
+	if len(ctStr) > 0 && strings.HasPrefix(ctStr, binaryPrefix) {
+		rawBytes, err := readRawString(ctStr)
+		if err != nil {
+			return nil, errors.New("malformed binary string in content field")
+		}
+
+		return config.ConstantBuilder{
+			Extension: pkix.Extension{
+				Id:       castedExtConfig.Oid(),
+				Critical: critical,
+				Value:    rawBytes,
+			},
+		}, nil
+	}
+
+	return nil, nil
+}
+
 // JSON/YAML representation for this extension.
 // Also implements [config.ExtensionConfig]
 type SubjectKeyIdentifier struct {
@@ -142,69 +232,28 @@ type SubjectKeyIdentifier struct {
 	Content  string `json:"content"`
 }
 
-func (s SubjectKeyIdentifier) Oid() (asn1.ObjectIdentifier, error) {
-	oid, ok := cert.GetOid(cert.OidExtensionSubjectKeyId)
-	if !ok {
-		panic("Bug: Extension OID not in bounds!")
-	}
-
-	return oid, nil
+func (s SubjectKeyIdentifier) Oid() asn1.ObjectIdentifier {
+	return cert.ExpectOid(cert.OidExtensionSubjectKeyId)
 }
 
 func (s SubjectKeyIdentifier) Builder() (cert.ExtensionBuilder, error) {
-	if len(s.Raw) != 0 && len(s.Content) != 0 {
-		return nil, errors.New(
-			"config-v1: [subjectKeyId] ambiguous definition; content and raw both are given")
+	builder, err := commonExtensionHandler(s)
+	if builder != nil || err != nil {
+		return builder, err
 	}
-	oid, ok := cert.GetOid(cert.OidExtensionSubjectKeyId)
-	if !ok {
-		panic("Bug: Extension OID not in bounds!")
-	}
-	if len(s.Raw) != 0 {
-		b, err := readRawString(s.Raw)
-		if err != nil {
-			return nil, err
-		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oid,
-				Critical: s.Critical,
-				Value:    b,
-			},
-		}, nil
-	} else if strings.HasPrefix(s.Content, binaryPrefix) {
-		b, err := readRawString(s.Content)
-		if err != nil {
-			return nil, err
-		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oid,
-				Critical: s.Critical,
-				Value:    b,
-			},
-		}, nil
-	} else if s.Content == "hash" {
+
+	//handle special cases
+	switch s.Content {
+	case "hash":
 		return config.FunctionBuilder{
 			Function: func(ctx *cert.CertificateContext) (*pkix.Extension, error) {
 				return cert.NewSubjectKeyIdentifier(s.Critical, ctx)
 			},
 		}, nil
-	} else if len(s.Content) != 0 {
-		b, err := readRawString(s.Content)
-		if err != nil {
-			return nil, err
-		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oid,
-				Critical: s.Critical,
-				Value:    b,
-			},
-		}, nil
+	default:
+		return nil, fmt.Errorf(
+			"malformed content for subjectKeyId: '%s'", s.Content)
 	}
-
-	return config.OverrideNeededBuilder{}, nil
 }
 
 const (
@@ -225,66 +274,40 @@ type KeyUsage struct {
 	Content  []string `json:"content"`
 }
 
-func (k KeyUsage) Oid() (asn1.ObjectIdentifier, error) {
-	oid, ok := cert.GetOid(cert.OidExtensionKeyUsage)
-	if !ok {
-		panic("Bug: Extension OID not in bounds!")
-	}
-
-	return oid, nil
+func (k KeyUsage) Oid() asn1.ObjectIdentifier {
+	return cert.ExpectOid(cert.OidExtensionKeyUsage)
 }
 
 func (k KeyUsage) Builder() (cert.ExtensionBuilder, error) {
-	if len(k.Raw) != 0 && len(k.Content) != 0 {
-		return nil, errors.New(
-			"config-v1: [keyUsage] ambiguous definition; content and raw both are given")
-	}
-	if len(k.Raw) != 0 {
-		oid, ok := cert.GetOid(cert.OidExtensionKeyUsage)
-		if !ok {
-			panic("Bug: Extension OID not in bounds!")
-		}
-		b, err := readRawString(k.Raw)
-		if err != nil {
-			return nil, err
-		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oid,
-				Critical: k.Critical,
-				Value:    b,
-			},
-		}, nil
+	builder, err := commonExtensionHandler(k)
+	if builder != nil || err != nil {
+		return builder, err
 	}
 
 	usageFlags := cert.KeyUsage(0)
-	if k.Content != nil {
-		for _, flagString := range k.Content {
-			switch flagString {
-			case DigitalSignature:
-				usageFlags |= cert.DigitalSignature
-			case NonRepudiation:
-				usageFlags |= cert.NonRepudiation
-			case KeyEncipherment:
-				usageFlags |= cert.KeyEncipherment
-			case DataEncipherment:
-				usageFlags |= cert.DataEncipherment
-			case KeyAgreement:
-				usageFlags |= cert.KeyAgreement
-			case KeyCertSign:
-				usageFlags |= cert.KeyCertSign
-			case CRLSign:
-				usageFlags |= cert.CRLSign
-			default:
-				return nil, fmt.Errorf("config-v1: [keyUsage] unknown key usage: %v", flagString)
-			}
+	for _, flagString := range k.Content {
+		switch flagString {
+		case DigitalSignature:
+			usageFlags |= cert.DigitalSignature
+		case NonRepudiation:
+			usageFlags |= cert.NonRepudiation
+		case KeyEncipherment:
+			usageFlags |= cert.KeyEncipherment
+		case DataEncipherment:
+			usageFlags |= cert.DataEncipherment
+		case KeyAgreement:
+			usageFlags |= cert.KeyAgreement
+		case KeyCertSign:
+			usageFlags |= cert.KeyCertSign
+		case CRLSign:
+			usageFlags |= cert.CRLSign
+		default:
+			return nil, fmt.Errorf("config-v1: [keyUsage] unknown key usage: %v", flagString)
 		}
-		return config.ConstantBuilder{
-			Extension: cert.NewKeyUsage(k.Critical, usageFlags),
-		}, nil
 	}
-
-	return config.OverrideNeededBuilder{}, nil
+	return config.ConstantBuilder{
+		Extension: cert.NewKeyUsage(k.Critical, usageFlags),
+	}, nil
 }
 
 // JSON/YAML representation for this extension.
@@ -300,42 +323,14 @@ type SubjAltNameComponent struct {
 	Name string `json:"name"`
 }
 
-func (s SubjectAltName) Oid() (asn1.ObjectIdentifier, error) {
-	oid, ok := cert.GetOid(cert.OidExtensionSubjectAltName)
-	if !ok {
-		panic("Bug: Extension OID not in bounds!")
-	}
-
-	return oid, nil
+func (s SubjectAltName) Oid() asn1.ObjectIdentifier {
+	return cert.ExpectOid(cert.OidExtensionSubjectAltName)
 }
 
 func (s SubjectAltName) Builder() (cert.ExtensionBuilder, error) {
-	if len(s.Raw) != 0 && len(s.Content) != 0 {
-		return nil, errors.New(
-			"config-v1: [subjectAltName] ambiguous definition; content and raw both are given")
-	}
-
-	if len(s.Raw) != 0 {
-		oid, ok := cert.GetOid(cert.OidExtensionSubjectAltName)
-		if !ok {
-			panic("Bug: Extension OID not in bounds!")
-		}
-
-		b, err := readRawString(s.Raw)
-		if err != nil {
-			return nil, err
-		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oid,
-				Critical: s.Critical,
-				Value:    b,
-			},
-		}, nil
-	}
-
-	if s.Content == nil {
-		return config.OverrideNeededBuilder{}, nil
+	builder, err := commonExtensionHandler(s)
+	if builder != nil || err != nil {
+		return builder, err
 	}
 
 	sanValues := make([]cert.GeneralName, len(s.Content))
@@ -387,46 +382,19 @@ type BasicConstraints struct {
 	Content  *BasicConstraintsObj `json:"content"`
 }
 
-func (b BasicConstraints) Oid() (asn1.ObjectIdentifier, error) {
-	oid, ok := cert.GetOid(cert.OidExtensionBasicConstraints)
-	if !ok {
-		panic("Bug: Extension OID not in bounds!")
-	}
-
-	return oid, nil
+func (b BasicConstraints) Oid() asn1.ObjectIdentifier {
+	return cert.ExpectOid(cert.OidExtensionBasicConstraints)
 }
 
 func (b BasicConstraints) Builder() (cert.ExtensionBuilder, error) {
-	if b.Content != nil && len(b.Raw) != 0 {
-		return nil, errors.New("config-v1: [basicConstraints] ambiguous - both raw and content are given")
+	builder, err := commonExtensionHandler(b)
+	if builder != nil || err != nil {
+		return builder, err
 	}
 
-	if b.Content != nil {
-		return config.ConstantBuilder{
-			Extension: cert.NewBasicConstraints(b.Critical, b.Content.Ca, b.Content.PathLen),
-		}, nil
-	}
-
-	if len(b.Raw) != 0 {
-		oid, ok := cert.GetOid(cert.OidExtensionBasicConstraints)
-		if !ok {
-			panic("Bug: Extension OID not in bounds!")
-		}
-
-		by, err := readRawString(b.Raw)
-		if err != nil {
-			return nil, err
-		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oid,
-				Critical: b.Critical,
-				Value:    by,
-			},
-		}, nil
-	}
-
-	return config.OverrideNeededBuilder{}, nil
+	return config.ConstantBuilder{
+		Extension: cert.NewBasicConstraints(b.Critical, b.Content.Ca, b.Content.PathLen),
+	}, nil
 }
 
 type UserNotice struct {
@@ -453,82 +421,56 @@ type CertPolicies struct {
 	Content  []CertPolicy `json:"content"`
 }
 
-func (c CertPolicies) Oid() (asn1.ObjectIdentifier, error) {
-	oid, ok := cert.GetOid(cert.OidExtensionCertificatePolicies)
-	if !ok {
-		panic("Bug: Extension OID not in bounds!")
-	}
-
-	return oid, nil
+func (c CertPolicies) Oid() asn1.ObjectIdentifier {
+	return cert.ExpectOid(cert.OidExtensionCertificatePolicies)
 }
 
 func (c CertPolicies) Builder() (cert.ExtensionBuilder, error) {
-	if len(c.Raw) != 0 && len(c.Content) != 0 {
-		return nil, errors.New(
-			"config-v1: [certPolicies] ambiguous definition; content and raw both are given")
+	builder, err := commonExtensionHandler(c)
+	if builder != nil || err != nil {
+		return builder, err
 	}
 
-	if len(c.Raw) != 0 {
-		oid, ok := cert.GetOid(cert.OidExtensionCertificatePolicies)
-		if !ok {
-			panic("Bug: Extension OID not in bounds!")
-		}
-
-		b, err := readRawString(c.Raw)
+	policyIds := make([]cert.PolicyInfo, len(c.Content))
+	for i, policyObj := range c.Content {
+		id, err := cert.OidFromString(policyObj.Oid)
 		if err != nil {
 			return nil, err
 		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oid,
-				Critical: c.Critical,
-				Value:    b,
-			},
-		}, nil
-	} else if c.Content != nil {
-		policyIds := make([]cert.PolicyInfo, len(c.Content))
-		for i, policyObj := range c.Content {
-			id, err := cert.OidFromString(policyObj.Oid)
-			if err != nil {
-				return nil, err
-			}
 
-			policyIds[i] = cert.PolicyInfo{ObjectIdentifier: id}
+		policyIds[i] = cert.PolicyInfo{ObjectIdentifier: id}
 
-			if policyObj.Qualifiers == nil {
+		if policyObj.Qualifiers == nil {
+			continue
+		}
+
+		policyIds[i].Qualifiers = make([]cert.PolicyQualifier, len(policyObj.Qualifiers))
+
+		for j, qualifier := range policyObj.Qualifiers {
+			if len(qualifier.Cps) > 0 {
+				policyIds[i].Qualifiers[j].QualifierId = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 1}
+				policyIds[i].Qualifiers[j].Cps = qualifier.Cps
 				continue
 			}
-
-			policyIds[i].Qualifiers = make([]cert.PolicyQualifier, len(policyObj.Qualifiers))
-
-			for j, qualifier := range policyObj.Qualifiers {
-				if len(qualifier.Cps) > 0 {
-					policyIds[i].Qualifiers[j].QualifierId = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 1}
-					policyIds[i].Qualifiers[j].Cps = qualifier.Cps
-					continue
+			if qualifier.UserNotice != nil {
+				policyIds[i].Qualifiers[j].QualifierId = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 2}
+				policyIds[i].Qualifiers[j].UserNotice = cert.UserNotice{
+					NoticeRef: cert.NoticeReference{
+						Organization:  qualifier.Organization,
+						NoticeNumbers: qualifier.Numbers,
+					},
+					ExplicitText: qualifier.Text,
 				}
-				if qualifier.UserNotice != nil {
-					policyIds[i].Qualifiers[j].QualifierId = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 2}
-					policyIds[i].Qualifiers[j].UserNotice = cert.UserNotice{
-						NoticeRef: cert.NoticeReference{
-							Organization:  qualifier.Organization,
-							NoticeNumbers: qualifier.Numbers,
-						},
-						ExplicitText: qualifier.Text,
-					}
-					continue
-				}
-				return nil, fmt.Errorf("config-v1: no valid qualifier in struct: %v", qualifier)
+				continue
 			}
+			return nil, fmt.Errorf("config-v1: no valid qualifier in struct: %v", qualifier)
 		}
-		ext, err := cert.NewCertificatePolicies(c.Critical, policyIds)
-		if err != nil {
-			return nil, err
-		}
-		return config.ConstantBuilder{Extension: *ext}, nil
 	}
-
-	return config.OverrideNeededBuilder{}, nil
+	ext, err := cert.NewCertificatePolicies(c.Critical, policyIds)
+	if err != nil {
+		return nil, err
+	}
+	return config.ConstantBuilder{Extension: *ext}, nil
 }
 
 type SingleAuthInfo struct {
@@ -543,59 +485,33 @@ type AuthInfoAccess struct {
 	Content  []SingleAuthInfo `json:"content"`
 }
 
-func (a AuthInfoAccess) Oid() (asn1.ObjectIdentifier, error) {
-	oid, ok := cert.GetOid(cert.OidExtensionAuthorityInfoAccess)
-	if !ok {
-		panic("Bug: Extension OID not in bounds!")
-	}
-
-	return oid, nil
+func (a AuthInfoAccess) Oid() asn1.ObjectIdentifier {
+	return cert.ExpectOid(cert.OidExtensionAuthorityInfoAccess)
 }
 
 func (a AuthInfoAccess) Builder() (cert.ExtensionBuilder, error) {
-	if len(a.Raw) != 0 && len(a.Content) != 0 {
-		return nil, errors.New(
-			"config-v1: [certPolicies] ambiguous definition; content and raw both are given")
+	builder, err := commonExtensionHandler(a)
+	if builder != nil || err != nil {
+		return builder, err
 	}
 
-	if len(a.Raw) != 0 {
-		oid, ok := cert.GetOid(cert.OidExtensionAuthorityInfoAccess)
-		if !ok {
-			panic("Bug: Extension OID not in bounds!")
+	accessInfoList := make([]cert.AccessDescription, len(a.Content))
+	for i, infoElement := range a.Content {
+		if len(infoElement.Ocsp) == 0 {
+			return nil, errors.New("config-v1: [authorityInfoAccess] no ocsp value given")
 		}
 
-		b, err := readRawString(a.Raw)
-		if err != nil {
-			return nil, err
+		accessInfoList[i] = cert.AccessDescription{
+			AccessMethod:   cert.Ocsp,
+			AccessLocation: cert.GeneralNameURI(infoElement.Ocsp),
 		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oid,
-				Critical: a.Critical,
-				Value:    b,
-			},
-		}, nil
-	} else if a.Content != nil {
-		accessInfoList := make([]cert.AccessDescription, len(a.Content))
-		for i, infoElement := range a.Content {
-			if len(infoElement.Ocsp) == 0 {
-				return nil, errors.New("config-v1: [authorityInfoAccess] no ocsp value given")
-			}
-
-			accessInfoList[i] = cert.AccessDescription{
-				AccessMethod:   cert.Ocsp,
-				AccessLocation: cert.GeneralNameURI(infoElement.Ocsp),
-			}
-		}
-		ext, err := cert.NewAuthorityInfoAccess(a.Critical, accessInfoList)
-		if err != nil {
-			return nil, err
-		}
-
-		return config.ConstantBuilder{Extension: *ext}, nil
+	}
+	ext, err := cert.NewAuthorityInfoAccess(a.Critical, accessInfoList)
+	if err != nil {
+		return nil, err
 	}
 
-	return config.OverrideNeededBuilder{}, nil
+	return config.ConstantBuilder{Extension: *ext}, nil
 }
 
 type AuthKeyIdContent struct {
@@ -610,71 +526,44 @@ type AuthKeyId struct {
 	Content  AuthKeyIdContent `json:"content"`
 }
 
-func (a AuthKeyId) Oid() (asn1.ObjectIdentifier, error) {
-	oid, ok := cert.GetOid(cert.OidExtensionAuthorityKeyId)
-	if !ok {
-		panic("Bug: Extension OID not in bounds!")
-	}
-
-	return oid, nil
+func (a AuthKeyId) Oid() asn1.ObjectIdentifier {
+	return cert.ExpectOid(cert.OidExtensionAuthorityKeyId)
 }
 
 func (a AuthKeyId) Builder() (cert.ExtensionBuilder, error) {
-	if len(a.Raw) != 0 && len(a.Content.Id) != 0 {
-		return nil, errors.New(
-			"config-v1: [certPolicies] ambiguous definition; content and raw both are given")
+	builder, err := commonExtensionHandler(a)
+	if builder != nil || err != nil {
+		return builder, err
 	}
-
-	if len(a.Raw) != 0 {
-		oid, ok := cert.GetOid(cert.OidExtensionAuthorityKeyId)
-		if !ok {
-			panic("Bug: Extension OID not in bounds!")
-		}
-
-		b, err := readRawString(a.Raw)
+	if a.Content.Id == "hash" {
+		return config.FunctionBuilder{
+			Function: func(ctx *cert.CertificateContext) (*pkix.Extension, error) {
+				return cert.NewAuthorityKeyIdentifierHash(
+					a.Critical,
+					ctx,
+				)
+			},
+		}, nil
+	} else if strings.HasPrefix(a.Content.Id, binaryPrefix) {
+		b, err := readRawString(a.Content.Id)
 		if err != nil {
 			return nil, err
 		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oid,
-				Critical: a.Critical,
-				Value:    b,
+
+		ext, err := cert.NewAuthorityKeyIdentifierFromStruct(
+			a.Critical,
+			cert.AuthorityKeyIdentifier{
+				KeyIdentifier: b,
 			},
-		}, nil
-	} else if len(a.Content.Id) != 0 {
-		if a.Content.Id == "hash" {
-			return config.FunctionBuilder{
-				Function: func(ctx *cert.CertificateContext) (*pkix.Extension, error) {
-					return cert.NewAuthorityKeyIdentifierHash(
-						a.Critical,
-						ctx,
-					)
-				},
-			}, nil
-		} else if strings.HasPrefix(a.Content.Id, binaryPrefix) {
-			b, err := readRawString(a.Content.Id)
-			if err != nil {
-				return nil, err
-			}
-
-			ext, err := cert.NewAuthorityKeyIdentifierFromStruct(
-				a.Critical,
-				cert.AuthorityKeyIdentifier{
-					KeyIdentifier: b,
-				},
-			)
-			if err != nil {
-				return nil, err
-			}
-
-			return config.ConstantBuilder{Extension: *ext}, nil
-		} else {
-			return nil, fmt.Errorf("config-v1: [authKeyId] illegal id: %v", a.Content.Id)
+		)
+		if err != nil {
+			return nil, err
 		}
-	}
 
-	return config.OverrideNeededBuilder{}, nil
+		return config.ConstantBuilder{Extension: *ext}, nil
+	} else {
+		return nil, fmt.Errorf("config-v1: [authKeyId] illegal id: %v", a.Content.Id)
+	}
 }
 
 // JSON/YAML representation for this extension.
@@ -694,13 +583,8 @@ const (
 	OcspSigning     string = "OCSPSigning"
 )
 
-func (e ExtKeyUsage) Oid() (asn1.ObjectIdentifier, error) {
-	oid, ok := cert.GetOid(cert.OidExtensionExtendedKeyUsage)
-	if !ok {
-		panic("Bug: Extension OID not in bounds!")
-	}
-
-	return oid, nil
+func (e ExtKeyUsage) Oid() asn1.ObjectIdentifier {
+	return cert.ExpectOid(cert.OidExtensionExtendedKeyUsage)
 }
 
 func extKeyUsageOid(s string) (asn1.ObjectIdentifier, error) {
@@ -731,46 +615,25 @@ func extKeyUsageOid(s string) (asn1.ObjectIdentifier, error) {
 }
 
 func (e ExtKeyUsage) Builder() (cert.ExtensionBuilder, error) {
-	if len(e.Raw) != 0 && len(e.Content) != 0 {
-		return nil, errors.New(
-			"config-v1: [extKeyUsage] ambiguous definition; content and raw both are given")
+	builder, err := commonExtensionHandler(e)
+	if builder != nil || err != nil {
+		return builder, err
 	}
 
-	if len(e.Raw) != 0 {
-		oid, ok := cert.GetOid(cert.OidExtensionExtendedKeyUsage)
-		if !ok {
-			panic("Bug: Extension OID not in bounds!")
-		}
-
-		b, err := readRawString(e.Raw)
+	usageList := make([]asn1.ObjectIdentifier, len(e.Content))
+	for i, usageStr := range e.Content {
+		var err error
+		usageList[i], err = extKeyUsageOid(usageStr)
 		if err != nil {
 			return nil, err
 		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oid,
-				Critical: e.Critical,
-				Value:    b,
-			},
-		}, nil
-	} else if e.Content != nil {
-		usageList := make([]asn1.ObjectIdentifier, len(e.Content))
-		for i, usageStr := range e.Content {
-			var err error
-			usageList[i], err = extKeyUsageOid(usageStr)
-			if err != nil {
-				return nil, err
-			}
-		}
-		ext, err := cert.NewExtendedKeyUsage(e.Critical, usageList)
-		if err != nil {
-			return nil, err
-		}
-
-		return config.ConstantBuilder{Extension: *ext}, nil
+	}
+	ext, err := cert.NewExtendedKeyUsage(e.Critical, usageList)
+	if err != nil {
+		return nil, err
 	}
 
-	return config.OverrideNeededBuilder{}, nil
+	return config.ConstantBuilder{Extension: *ext}, nil
 }
 
 type AdmissionExtension struct {
@@ -892,52 +755,26 @@ func (s SingleAdmission) convert() (*cert.Admissions, error) {
 	}, nil
 }
 
-func (a AdmissionExtension) Oid() (asn1.ObjectIdentifier, error) {
-	oid, ok := cert.GetOid(cert.OidExtensionAdmission)
-	if !ok {
-		panic("Bug: Extension OID not in bounds!")
-	}
-
-	return oid, nil
+func (a AdmissionExtension) Oid() asn1.ObjectIdentifier {
+	return cert.ExpectOid(cert.OidExtensionAdmission)
 }
 
 func (a AdmissionExtension) Builder() (cert.ExtensionBuilder, error) {
-	if len(a.Raw) != 0 && a.Content == nil {
-		return nil, errors.New(
-			"config-v1: [admission] ambiguous definition; content and raw both are given")
+	builder, err := commonExtensionHandler(a)
+	if builder != nil || err != nil {
+		return builder, err
 	}
 
-	if len(a.Raw) != 0 {
-		oid, ok := cert.GetOid(cert.OidExtensionAdmission)
-		if !ok {
-			panic("Bug: Extension OID not in bounds!")
-		}
-
-		b, err := readRawString(a.Raw)
-		if err != nil {
-			return nil, err
-		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oid,
-				Critical: a.Critical,
-				Value:    b,
-			},
-		}, nil
-	} else if a.Content != nil {
-		adConverted, err := a.Content.convert()
-		if err != nil {
-			return nil, err
-		}
-		ext, err := cert.NewAdmission(a.Critical, *adConverted)
-		if err != nil {
-			return nil, err
-		}
-
-		return config.ConstantBuilder{Extension: *ext}, nil
+	adConverted, err := a.Content.convert()
+	if err != nil {
+		return nil, err
+	}
+	ext, err := cert.NewAdmission(a.Critical, *adConverted)
+	if err != nil {
+		return nil, err
 	}
 
-	return config.OverrideNeededBuilder{}, nil
+	return config.ConstantBuilder{Extension: *ext}, nil
 }
 
 type OcspNoCheckExtension struct {
@@ -945,36 +782,19 @@ type OcspNoCheckExtension struct {
 	Critical bool   `json:"critical"`
 }
 
-func (o OcspNoCheckExtension) Oid() (asn1.ObjectIdentifier, error) {
-	oid, ok := cert.GetOid(cert.OidExtensionOcspNoCheck)
-	if !ok {
-		panic("Bug: Extension OID not in bounds!")
-	}
-
-	return oid, nil
+func (o OcspNoCheckExtension) Oid() asn1.ObjectIdentifier {
+	return cert.ExpectOid(cert.OidExtensionOcspNoCheck)
 }
 
 func (o OcspNoCheckExtension) Builder() (cert.ExtensionBuilder, error) {
-	if len(o.Raw) == 0 {
-		return config.ConstantBuilder{Extension: cert.NewOcspNoCheck(o.Critical)}, nil
-	} else {
-		oid, ok := cert.GetOid(cert.OidExtensionAdmission)
-		if !ok {
-			panic("Bug: Extension OID not in bounds!")
-		}
+	builder, err := commonExtensionHandler(o)
 
-		b, err := readRawString(o.Raw)
-		if err != nil {
-			return nil, err
-		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oid,
-				Critical: o.Critical,
-				Value:    b,
-			},
-		}, nil
+	//no override possible with this extension
+	if (builder != nil || err != nil) && len(o.Raw) > 0 {
+		return builder, err
 	}
+
+	return config.ConstantBuilder{Extension: cert.NewOcspNoCheck(o.Critical)}, nil
 }
 
 // JSON/YAML representation for this custom extensions.
@@ -985,28 +805,22 @@ type CustomExtension struct {
 	Critical bool   `json:"critical"`
 }
 
-func (c CustomExtension) Oid() (asn1.ObjectIdentifier, error) {
-	return cert.OidFromString(c.OidStr)
+func (c CustomExtension) Oid() asn1.ObjectIdentifier {
+	oid, err := cert.OidFromString(c.OidStr)
+	if err != nil {
+		panic(fmt.Sprintf(
+			"oid %s does not have a valid format which went "+
+				"undetected when parsing the config. this is a bug",
+			c.OidStr,
+		))
+	}
+	return oid
 }
 
 func (c CustomExtension) Builder() (cert.ExtensionBuilder, error) {
-	if len(c.Raw) != 0 {
-		oidObj, err := c.Oid()
-		if err != nil {
-			return nil, err
-		}
-
-		b, err := readRawString(c.Raw)
-		if err != nil {
-			return nil, err
-		}
-		return config.ConstantBuilder{
-			Extension: pkix.Extension{
-				Id:       oidObj,
-				Critical: c.Critical,
-				Value:    b,
-			},
-		}, nil
+	builder, err := commonExtensionHandler(c)
+	if builder != nil || err != nil {
+		return builder, err
 	}
 
 	return nil, fmt.Errorf("config-v1: [customExtension] raw-content not given")
