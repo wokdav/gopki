@@ -75,7 +75,6 @@ func TestParseRdn(t *testing.T) {
 	}
 }
 
-// TODO: TEST: check the init methods rather the parsing methods
 func TestAlias(t *testing.T) {
 	tests := map[string]bool{
 		//testvector, expectSuccess
