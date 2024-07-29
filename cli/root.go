@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/wokdav/gopki/generator/config"
 	"github.com/wokdav/gopki/generator/db"
@@ -95,7 +97,32 @@ func init() {
 				os.Exit(0)
 			}
 
-			_, err = db.Update(fsdb, strat)
+			changeList := db.PlanUpdate(fsdb, strat)
+
+			changeWarning := false
+			for _, change := range changeList {
+				if change.Change == db.ChangeReplace {
+					if !changeWarning {
+						fmt.Println("The following entites will be overwritten:")
+						changeWarning = true
+					}
+					fmt.Printf("> %v\n", change.Entity.Config.Alias)
+				}
+			}
+
+			if changeWarning {
+				fmt.Printf("Proceed [y,N]? ")
+
+				keyboardInput := bufio.NewReader(os.Stdin)
+				s, err := keyboardInput.ReadString(byte('\n'))
+				cleanS := strings.ToLower(strings.TrimSpace(s))
+				if err != nil || cleanS != "y" {
+					fmt.Printf("Abort due to missing user consent.")
+					os.Exit(0)
+				}
+			}
+
+			_, err = db.Update(fsdb, changeList)
 			if err != nil {
 				fmt.Printf("error during database update: %s", err.Error())
 				os.Exit(1)

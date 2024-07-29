@@ -131,7 +131,8 @@ func quickUpdate(testdb db.Database, strat db.UpdateStrategy) (int, error) {
 	}
 	defer testdb.Close()
 
-	certsGenerated, err = db.Update(testdb, strat)
+	updatePlan := db.PlanUpdate(testdb, strat)
+	certsGenerated, err = db.Update(testdb, updatePlan)
 	if err != nil {
 		return certsGenerated, err
 	}

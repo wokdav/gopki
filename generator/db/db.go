@@ -34,6 +34,15 @@ const (
 	UpdateAll         UpdateStrategy = 8
 )
 
+type ChangeType uint8
+
+const (
+	ChangeNone ChangeType = iota
+	ChangeCreate
+	ChangeReplace
+	ChangeDelete
+)
+
 type Database interface {
 	Open() error
 	Close() error
@@ -154,16 +163,24 @@ func IsConsistent(backend Database) bool {
 	return numEntries == backend.NumEntities()
 }
 
-func Update(backend Database, strat UpdateStrategy) (int, error) {
+type Change struct {
+	Entity *DbEntity
+	Change ChangeType
+}
+
+type ChangeList []Change
+
+func PlanUpdate(backend Database, strat UpdateStrategy) ChangeList {
+	changes := make(ChangeList, 0, 1024)
+
 	todo := make([]string, 0, 1024)
 	todo = append(todo, backend.RootEntities()...)
-	certsGenerated := 0
 
 	i := 0
 	for i < len(todo) {
 		currentEntity := todo[i]
 		i++
-		logging.Debugf("currently working on %v (item %v/%v of our to-do list)", currentEntity, i, len(todo))
+		logging.Debugf("currently checking %v (item %v/%v of our to-do list)", currentEntity, i, len(todo))
 
 		//add subscribers to todo list
 		subs := backend.GetSubscribers(currentEntity)
@@ -172,34 +189,56 @@ func Update(backend Database, strat UpdateStrategy) (int, error) {
 
 		entityObj := backend.GetEntity(currentEntity)
 
-		//check if we need to upgrade
 		update := needsUpdate(backend, strat, entityObj.Config.Alias)
+
+		if !update {
+			logging.Debugf("Entity '%v' does not need an update", currentEntity)
+		} else {
+			changeTmp := Change{Entity: entityObj}
+
+			if entityObj.BuildArtifact.Certificate != nil {
+				logging.Infof("Entity '%v' will be overwritten", currentEntity)
+				changeTmp.Change = ChangeReplace
+			} else {
+				logging.Infof("Entity '%v' will be created", currentEntity)
+				changeTmp.Change = ChangeCreate
+			}
+
+			changes = append(changes, changeTmp)
+		}
+	}
+
+	return changes
+}
+
+func Update(backend Database, changes ChangeList) (int, error) {
+	certsGenerated := 0
+
+	for _, change := range changes {
+		if change.Change != ChangeCreate && change.Change != ChangeReplace {
+			continue
+		}
 
 		var ctx *cert.CertificateContext
 		var issuerCtx cert.IssuerContext
 		var issuerEntity *DbEntity
-
 		var err error
-		if !update {
-			logging.Debugf("%v does not need an update", currentEntity)
-			continue
-		}
 
 		//validate and merge profile if applicable
-		if err = validateAndMerge(backend, entityObj); err != nil {
+		if err = validateAndMerge(backend, change.Entity); err != nil {
 			return certsGenerated, err
 		}
 
-		logging.Debugf("generating new certificate body for %v", currentEntity)
-		ctx, err = generator.BuildCertBody(entityObj.Config,
-			entityObj.BuildArtifact.PrivateKey, entityObj.BuildArtifact.Request)
+		logging.Debugf("generating new certificate body for %v", change.Entity.Config.Alias)
+		ctx, err = generator.BuildCertBody(change.Entity.Config,
+			change.Entity.BuildArtifact.PrivateKey, change.Entity.BuildArtifact.Request)
 		if err != nil {
 			return certsGenerated, err
 		}
 
-		if len(entityObj.Config.Issuer) > 0 {
-			logging.Debugf("issuer property for %v is set", currentEntity)
-			issuerEntity = backend.GetEntity(entityObj.Config.Issuer)
+		if len(change.Entity.Config.Issuer) > 0 {
+			logging.Debugf("issuer property for %v is set", change.Entity.Config.Alias)
+			issuerEntity = backend.GetEntity(change.Entity.Config.Issuer)
 			issuerCtx = cert.IssuerContext{
 				PrivateKey:   issuerEntity.BuildArtifact.PrivateKey,
 				PublicKeyRaw: issuerEntity.BuildArtifact.Certificate.TBSCertificate.PublicKey.PublicKey.Bytes,
@@ -212,24 +251,25 @@ func Update(backend Database, strat UpdateStrategy) (int, error) {
 		ctx.Issuer = &issuerCtx
 
 		//sign
-		logging.Debugf("signing certificate for %v", currentEntity)
-		crt, err := generator.SignCertBody(ctx, entityObj.Config)
+		logging.Debugf("signing certificate for %v", change.Entity.Config.Alias)
+		crt, err := generator.SignCertBody(ctx, change.Entity.Config)
 		if err != nil {
 			return certsGenerated, err
 		}
 
-		entityObj.BuildArtifact = BuildArtifact{
+		change.Entity.BuildArtifact = BuildArtifact{
 			Certificate: crt,
 			PrivateKey:  ctx.PrivateKey,
-			Request:     entityObj.BuildArtifact.Request,
+			Request:     change.Entity.BuildArtifact.Request,
 		}
 
-		entityObj.LastBuild = time.Now()
-		err = backend.PutEntity(*entityObj)
+		change.Entity.LastBuild = time.Now()
+		err = backend.PutEntity(*change.Entity)
 		if err != nil {
 			return certsGenerated, err
 		}
 		certsGenerated++
+
 	}
 
 	logging.Infof("generation finished. %d certs generated", certsGenerated)
