@@ -6,7 +6,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/keybase/go-crypto v0.0.0-20200123153347-de78d2cb44f4
 	github.com/santhosh-tekuri/jsonschema v1.2.4
-	github.com/spf13/cobra v1.6.1
+	github.com/spf13/cobra v1.8.1
 )
 
 require (
