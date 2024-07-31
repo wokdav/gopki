@@ -78,9 +78,7 @@ func schemaTestJson(testSuiteJson string, schema *jsonschema.Schema, t *testing.
 
 			schemaTest, err := jsonschema.DecodeJSON(strings.NewReader(sb.String()))
 			if err != nil {
-				if err != nil {
-					t.Fatalf("can't re-decode test vector: %v", err)
-				}
+				t.Fatalf("can't re-decode test vector: %v", err)
 			}
 
 			err = schema.ValidateInterface(schemaTest)

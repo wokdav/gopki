@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/keybase/go-crypto/brainpool"
+	"github.com/keybase/go-crypto/openpgp/ecdh"
 )
 
 // Certificate data structure that can be serialized
@@ -677,7 +678,7 @@ func (ctx *CertificateContext) SetPrivateKey(key crypto.PrivateKey) error {
 			return err
 		}
 
-		ctx.TbsCertificate.PublicKey.PublicKey.Bytes = elliptic.Marshal(ecKey.Curve, ecKey.PublicKey.X, ecKey.PublicKey.Y)
+		ctx.TbsCertificate.PublicKey.PublicKey.Bytes, _ = ecdh.Marshal(ecKey.Curve, ecKey.PublicKey.X, ecKey.PublicKey.Y)
 		curveParam, exists := curveNameOids[ecKey.Params().Name]
 		if !exists {
 			return fmt.Errorf("cert: unknown ec key curve: %v", ecKey.Params().Name)
