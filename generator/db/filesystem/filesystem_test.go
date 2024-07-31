@@ -1093,6 +1093,50 @@ func TestGenerateExpiredExplicitFuture(t *testing.T) {
 	}
 }
 
+func TestGenerateChanged(t *testing.T) {
+	fsdb := getTestFs(map[string]string{
+		"root.yaml": "version: 1\nsubject: CN=TestRoot\n",
+	})
+
+	testdb := NewFilesystemDatabase(fsdb)
+	//this should succeed because if no last config exists, that will always be changed
+	_, err := quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	firstRoot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+	_, err = quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	s := string(firstRoot)
+	fmt.Println(s)
+
+	firstRootAgain, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+	if !bytes.Equal(firstRoot, firstRootAgain) {
+		t.Fatal("unchanged certificate config triggered re-generation")
+	}
+
+	// place old cert artifact into changed filesystem
+	fsdb = getTestFs(map[string]string{
+		"root.yaml": "version: 1\nsubject: CN=TestRootDIFFERENT\n",
+		"root.pem":  string(firstRoot),
+	})
+	testdb = NewFilesystemDatabase(fsdb)
+
+	_, err = quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	secondRoot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+	if bytes.Equal(secondRoot, firstRoot) {
+		t.Fatal("changed certificate config did not trigger re-generation")
+	}
+}
+
 func BenchmarkManyFiles(b *testing.B) {
 	logging.Initialize(logging.LevelNone, nil, nil)
 	fsmap := make(map[string]string)

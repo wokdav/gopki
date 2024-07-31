@@ -34,6 +34,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/wokdav/gopki/generator/cert"
 	"github.com/wokdav/gopki/generator/config"
 	"github.com/wokdav/gopki/generator/db"
@@ -210,9 +211,24 @@ func (fsdb *FsDb) AddProfile(profile config.CertificateProfile) error {
 	return nil
 }
 
+var cfgHeader []byte = []byte("# The YAML below is the last applied configuration for this certificate.\n" +
+	"Changing this breaks the change detection.\n")
+
 func (fsdb *FsDb) exportPemFile(entity fsEntity) error {
-	var err error
 	bb := bytes.Buffer{}
+
+	marshalledConfig, err := yaml.Marshal(entity.Config)
+	if err != nil {
+		logging.Errorf("can't marshal applied config for %v: %v", entity.Config.Alias, err)
+	} else {
+		for _, item := range [][]byte{cfgHeader, marshalledConfig} {
+			_, err = bb.Write(item)
+			if err != nil {
+				logging.Errorf("error writing pem for %v: %v", entity.Config.Alias, err)
+			}
+		}
+	}
+
 	if entity.BuildArtifact.Certificate != nil {
 		err = entity.BuildArtifact.Certificate.WritePem(&bb)
 		if err != nil {
@@ -247,27 +263,10 @@ func (fsdb *FsDb) exportPemFile(entity fsEntity) error {
 	return nil
 }
 
-func (fsdb *FsDb) importPemFile(alias string) db.BuildArtifact {
-	logging.Debugf("attempting to import cert/key for '%v' that we can reuse", alias)
+func (fsdb *FsDb) importPem(content []byte) db.BuildArtifact {
 	out := db.BuildArtifact{}
-	e, ok := fsdb.entities[alias]
-	if !ok {
-		return db.BuildArtifact{}
-	}
-	certFile := e.artifactFileName()
-	certfi, err := fsdb.filesystem.FS().Open(certFile)
-	if err != nil {
-		logging.Debugf("import of %v failed: %v", certFile, err)
-		return out
-	}
-	defer certfi.Close()
 
-	certfiContent, err := io.ReadAll(certfi)
-	if err != nil {
-		return out
-	}
-
-	pemFile, err := cert.ReadPem(certfiContent)
+	pemFile, err := cert.ReadPem(content)
 	if err != nil {
 		logging.Infof("pem import failed: %v", err)
 	}
@@ -276,14 +275,6 @@ func (fsdb *FsDb) importPemFile(alias string) db.BuildArtifact {
 		out.Certificate = pemFile.Certificate
 	} else {
 		logging.Infof("certificate import failed: no certificate found")
-	}
-
-	//get modtime for certFile
-	fi, err := fsdb.filesystem.Stat(certFile)
-	if err != nil && !os.IsNotExist(err) {
-		logging.Infof("could not get modtime for %v: %v", certFile, err)
-	} else {
-		e.lastArtifactWrite = fi.ModTime()
 	}
 
 	if pemFile.PrivateKey != nil {
@@ -340,8 +331,57 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 		logging.Warningf("filesystem does not support statfs. cannot get modtime for %v. updates based on modtimes will be unreliable", configPath)
 	}
 
-	//attempt to import certificate and key
-	e.DbEntity.BuildArtifact = fsdb.importPemFile(certContent.Alias)
+	//get modtime for cert file
+	var readableArtifactFound bool
+	var certfiContent []byte
+	certFile := e.artifactFileName()
+	certfi, err := fsdb.filesystem.FS().Open(certFile)
+	if err != nil {
+		logging.Debugf("attempt to open %v failed: %v", certFile, err)
+	} else {
+		certfiContent, err = io.ReadAll(certfi)
+		if err != nil {
+			logging.Warningf("reading of %v failed: %v", certFile, err)
+			certfi.Close()
+		} else {
+			readableArtifactFound = true
+		}
+
+		certfi.Close()
+	}
+
+	if readableArtifactFound {
+		fi, err := fsdb.filesystem.Stat(certFile)
+		if err != nil {
+			logging.Warningf("could not get modtime for %v: %v", certFile, err)
+		} else {
+			e.lastArtifactWrite = fi.ModTime()
+		}
+
+		logging.Debugf("attempting to import cert/key for '%v' that we can reuse", certFile)
+		pemHeaderIx := bytes.Index(certfiContent, []byte("-----"))
+
+		if pemHeaderIx != -1 {
+			//attempt to import certificate and key
+			logging.Debugf("attempting to import cert/key for '%v' that we can reuse", certFile)
+			e.DbEntity.BuildArtifact = fsdb.importPem(certfiContent)
+
+			//get last applied config from cert file
+			//yaml input expected at the start until the first PEM object begins
+			cfgRaw, err := config.ParseConfig(bytes.NewReader(certfiContent[:pemHeaderIx]))
+			if err != nil {
+				logging.Infof("cant find/read last applied config for %v", certFile)
+			} else {
+				cfg, ok := cfgRaw.(*config.CertificateContent)
+				if !ok {
+					logging.Warningf("can't parse last applied config of %v into struct. ignoring.", certFile)
+				} else {
+					logging.Debugf("imported last applied config for %v", certFile)
+					e.DbEntity.LastConfig = *cfg
+				}
+			}
+		}
+	}
 
 	//populate root and subscriber lists
 	if !alreadyExists {
@@ -366,8 +406,7 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 }
 
 // Open will walk through the filesystem and collect all config files, building
-// the certificate hierarchy. It does not just open a file descriptor, as the name might
-// suggest.
+// the certificate hierarchy.
 func ImportFiles(backend db.Database, fsys fs.FS) error {
 	logging.Debug("scanning folder for config files")
 

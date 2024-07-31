@@ -10,6 +10,7 @@ package db
 import (
 	"crypto"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/wokdav/gopki/generator"
@@ -31,7 +32,8 @@ const (
 	UpdateMissing     UpdateStrategy = 1
 	UpdateExpired     UpdateStrategy = 2
 	UpdateNewerConfig UpdateStrategy = 4
-	UpdateAll         UpdateStrategy = 8
+	UpdateChanged     UpdateStrategy = 8
+	UpdateAll         UpdateStrategy = 16
 )
 
 type ChangeType uint8
@@ -67,6 +69,7 @@ type BuildArtifact struct {
 type DbEntity struct {
 	LastBuild        time.Time
 	Config           config.CertificateContent
+	LastConfig       config.CertificateContent
 	LastConfigUpdate time.Time
 	BuildArtifact    BuildArtifact
 }
@@ -79,31 +82,37 @@ func needsUpdate(backend Database, strat UpdateStrategy, alias string) bool {
 	}
 
 	if strat&UpdateAll > 0 {
-		logging.Debugf("%v needs update. reson: GenerateAlways is set", entity.Config.Alias)
+		logging.Debugf("%v needs update. reason: GenerateAlways is set", entity.Config.Alias)
 		return true
 	}
 
 	issuer := backend.GetEntity(entity.Config.Issuer)
 	if strat != UpdateNone && issuer != nil && issuer.LastBuild.After(entity.LastBuild) {
-		logging.Debugf("%v needs update. reson: issuer %v was updated later", entity, issuer)
+		logging.Debugf("%v needs update. reason: issuer %v was updated later", entity, issuer)
 		return true
 	}
 
 	if strat&UpdateNewerConfig > 0 && entity.LastConfigUpdate.After(entity.LastBuild) {
-		logging.Debugf("%v needs update. reson: config was updated", entity)
+		logging.Debugf("%v needs update. reason: config was updated", entity)
 		return true
 	}
 
 	if strat&UpdateExpired > 0 && entity.BuildArtifact.Certificate != nil &&
 		entity.BuildArtifact.Certificate.TBSCertificate.Validity.NotAfter.Before(time.Now()) &&
 		entity.Config.ValidUntil.After(time.Now()) {
-		logging.Debugf("%v needs update. reson: certificate is expired", entity)
+		logging.Debugf("%v needs update. reason: certificate is expired", entity)
 		return true
 	}
 
 	if strat&UpdateMissing > 0 && (entity.BuildArtifact.Certificate == nil ||
 		entity.BuildArtifact.PrivateKey == nil) {
-		logging.Debugf("%v needs update. reson: certificate or private key is missing", entity)
+		logging.Debugf("%v needs update. reason: certificate or private key is missing", entity)
+		return true
+	}
+
+	if strat&UpdateChanged > 0 && !reflect.DeepEqual(entity.Config, entity.LastConfig) {
+		//TODO: Dates are still a problem, since we compare config.CertConfig structs. not v1.certConfigs
+		logging.Debugf("%v needs update. reason: current config differs from last applied config", entity)
 		return true
 	}
 
