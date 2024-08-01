@@ -1099,8 +1099,17 @@ func TestGenerateChanged(t *testing.T) {
 	})
 
 	testdb := NewFilesystemDatabase(fsdb)
-	//this should succeed because if no last config exists, that will always be changed
 	_, err := quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	_, err = fs.ReadFile(fsdb.FS(), "root.pem")
+	if err == nil {
+		t.Fatal("a missing hash should not count as a change")
+	}
+
+	_, err = quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
 		t.Fatal(err.Error())
 	}

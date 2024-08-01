@@ -110,7 +110,7 @@ func needsUpdate(backend Database, strat UpdateStrategy, alias string) bool {
 		return true
 	}
 
-	if strat&UpdateChanged > 0 && !bytes.Equal(entity.LastConfigHash, entity.Config.HashSum()) {
+	if strat&UpdateChanged > 0 && entity.LastConfigHash != nil && !bytes.Equal(entity.LastConfigHash, entity.Config.HashSum()) {
 		logging.Debugf("%v needs update. reason: current config differs from last applied config", entity)
 		return true
 	}

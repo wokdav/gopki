@@ -360,8 +360,10 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 
 		if hashIx != -1 {
 			hashEnd := bytes.IndexRune(certfiContent[hashIx:], '\n')
+			hashIx += len(hashPrefix)
 			if hashEnd != -1 {
-				hashBytes, err := base64.StdEncoding.DecodeString(string(certfiContent[hashIx:hashEnd]))
+				hashs := string(certfiContent[hashIx:hashEnd])
+				hashBytes, err := base64.StdEncoding.DecodeString(hashs)
 				if err != nil {
 					logging.Warningf("error decoding config hash for %v: %v", certFile, err)
 				} else {
