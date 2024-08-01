@@ -422,9 +422,15 @@ func initCertificate(c CertConfig) (*config.CertificateContent, error) {
 	out.Alias = c.Alias
 	out.Issuer = c.Issuer
 
+	out.StaticValidity = true
+
 	//fill in default values
 	if len(c.Validity.From) == 0 {
 		c.Validity.From = time.Now().Local().Format(dateForm)
+
+		// if from is undefined, it changes everytime it parsed
+		// so we mark that here to correctly set the hash code
+		out.StaticValidity = false
 	}
 	changed := inferDefaults(&c.Validity)
 

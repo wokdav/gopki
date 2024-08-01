@@ -8,9 +8,9 @@
 package db
 
 import (
+	"bytes"
 	"crypto"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/wokdav/gopki/generator"
@@ -69,7 +69,7 @@ type BuildArtifact struct {
 type DbEntity struct {
 	LastBuild        time.Time
 	Config           config.CertificateContent
-	LastConfig       config.CertificateContent
+	LastConfigHash   []byte
 	LastConfigUpdate time.Time
 	BuildArtifact    BuildArtifact
 }
@@ -110,8 +110,7 @@ func needsUpdate(backend Database, strat UpdateStrategy, alias string) bool {
 		return true
 	}
 
-	if strat&UpdateChanged > 0 && !reflect.DeepEqual(entity.Config, entity.LastConfig) {
-		//TODO: Dates are still a problem, since we compare config.CertConfig structs. not v1.certConfigs
+	if strat&UpdateChanged > 0 && !bytes.Equal(entity.LastConfigHash, entity.Config.HashSum()) {
 		logging.Debugf("%v needs update. reason: current config differs from last applied config", entity)
 		return true
 	}

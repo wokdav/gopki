@@ -128,6 +128,7 @@ type CertificateContent struct {
 	Issuer             string
 	ValidFrom          time.Time
 	ValidUntil         time.Time
+	StaticValidity     bool
 	KeyAlgorithm       cert.KeyAlgorithm
 	SignatureAlgorithm cert.SignatureAlgorithm
 	Extensions         []ExtensionConfig
@@ -146,21 +147,22 @@ type Manipulations struct {
 // HashSum returns a sha1 hash of the content
 // For HashSum to work, it is required, that all fields are exported.
 // This also goes for all implementations of ExtensionConfig.
-func (c CertificateContent) HashSum() ([]byte, error) {
+func (c CertificateContent) HashSum() []byte {
+	//c is not a pointer, so this change is temporary
+	if !c.StaticValidity {
+		c.ValidFrom = time.Time{}
+	}
+
 	//marshal c to json
 	b, err := json.Marshal(c)
 	if err != nil {
-		return nil, err
+		panic("can't marshal struct to json")
 	}
 
 	//hash json with sha1
 	alg := sha1.New()
-	_, err = alg.Write(b)
-	if err != nil {
-		return nil, err
-	}
-
-	return alg.Sum(nil), nil
+	alg.Write(b)
+	return alg.Sum(nil)
 }
 
 type ProfileSubjectAttribute struct {

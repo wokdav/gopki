@@ -24,6 +24,7 @@ package filesystem
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -34,7 +35,6 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/wokdav/gopki/generator/cert"
 	"github.com/wokdav/gopki/generator/config"
 	"github.com/wokdav/gopki/generator/db"
@@ -211,22 +211,14 @@ func (fsdb *FsDb) AddProfile(profile config.CertificateProfile) error {
 	return nil
 }
 
-var cfgHeader []byte = []byte("# The YAML below is the last applied configuration for this certificate.\n" +
-	"Changing this breaks the change detection.\n")
+const hashPrefix string = "#HASH:"
 
 func (fsdb *FsDb) exportPemFile(entity fsEntity) error {
 	bb := bytes.Buffer{}
 
-	marshalledConfig, err := yaml.Marshal(entity.Config)
+	_, err := bb.Write([]byte(hashPrefix + base64.StdEncoding.EncodeToString(entity.Config.HashSum()) + "\n"))
 	if err != nil {
-		logging.Errorf("can't marshal applied config for %v: %v", entity.Config.Alias, err)
-	} else {
-		for _, item := range [][]byte{cfgHeader, marshalledConfig} {
-			_, err = bb.Write(item)
-			if err != nil {
-				logging.Errorf("error writing pem for %v: %v", entity.Config.Alias, err)
-			}
-		}
+		logging.Errorf("error writing pem for %v: %v", entity.Config.Alias, err)
 	}
 
 	if entity.BuildArtifact.Certificate != nil {
@@ -359,25 +351,21 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 		}
 
 		logging.Debugf("attempting to import cert/key for '%v' that we can reuse", certFile)
-		pemHeaderIx := bytes.Index(certfiContent, []byte("-----"))
 
-		if pemHeaderIx != -1 {
-			//attempt to import certificate and key
-			logging.Debugf("attempting to import cert/key for '%v' that we can reuse", certFile)
-			e.DbEntity.BuildArtifact = fsdb.importPem(certfiContent)
+		//attempt to import certificate and key
+		logging.Debugf("attempting to import cert/key for '%v' that we can reuse", certFile)
+		e.DbEntity.BuildArtifact = fsdb.importPem(certfiContent)
 
-			//get last applied config from cert file
-			//yaml input expected at the start until the first PEM object begins
-			cfgRaw, err := config.ParseConfig(bytes.NewReader(certfiContent[:pemHeaderIx]))
-			if err != nil {
-				logging.Infof("cant find/read last applied config for %v", certFile)
-			} else {
-				cfg, ok := cfgRaw.(*config.CertificateContent)
-				if !ok {
-					logging.Warningf("can't parse last applied config of %v into struct. ignoring.", certFile)
+		hashIx := bytes.Index(certfiContent, []byte(hashPrefix))
+
+		if hashIx != -1 {
+			hashEnd := bytes.IndexRune(certfiContent[hashIx:], '\n')
+			if hashEnd != -1 {
+				hashBytes, err := base64.StdEncoding.DecodeString(string(certfiContent[hashIx:hashEnd]))
+				if err != nil {
+					logging.Warningf("error decoding config hash for %v: %v", certFile, err)
 				} else {
-					logging.Debugf("imported last applied config for %v", certFile)
-					e.DbEntity.LastConfig = *cfg
+					e.DbEntity.LastConfigHash = hashBytes
 				}
 			}
 		}

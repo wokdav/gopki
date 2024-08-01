@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"fmt"
@@ -435,15 +436,9 @@ func TestCertContentHashSum(t *testing.T) {
 	}
 
 	// hash should be the same for the same content
-	hash1, err := cert.HashSum()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-	hash2, err := cert.HashSum()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-	if !reflect.DeepEqual(hash1, hash2) {
+	hash1 := cert.HashSum()
+	hash2 := cert.HashSum()
+	if !bytes.Equal(hash1, hash2) {
 		t.Fatal("hashes are different")
 	}
 
@@ -452,21 +447,15 @@ func TestCertContentHashSum(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	hash3, err := cert.HashSum()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-	if reflect.DeepEqual(hash1, hash3) {
+	hash3 := cert.HashSum()
+	if bytes.Equal(hash1, hash3) {
 		t.Fatal("hashes are the same")
 	}
 
 	// hash should be different for different extension
 	cert.Extensions = []ExtensionConfig{testExt{ObjectIdentifier: asn1.ObjectIdentifier{5, 6, 7, 9}}}
-	hash4, err := cert.HashSum()
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-	if reflect.DeepEqual(hash3, hash4) {
+	hash4 := cert.HashSum()
+	if bytes.Equal(hash3, hash4) {
 		t.Fatal("hashes are the same")
 	}
 }
