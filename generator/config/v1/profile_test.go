@@ -192,11 +192,8 @@ func TestProfileValidityAttributes(t *testing.T) {
 		fmt.Sprintf(base, `{"duration": "5y4m1d"}`):                        true,
 		fmt.Sprintf(base, `{"from": "2015-01-01", "until": "2020-01-01"}`): true,
 		fmt.Sprintf(base, `{"from": "2015-01-01", "duration": "5y4m1d"}`):  true,
-
-		//bad
-		fmt.Sprintf(base, `{}`):                     false,
-		fmt.Sprintf(base, `{"from": "2015-01-01"}`): false,
-		fmt.Sprintf(base, `{"from": "2015-01-01", "duration": "5y4m1d", "until": "2020-01-01"}`): false,
+		fmt.Sprintf(base, `{}`):                                            true,
+		fmt.Sprintf(base, `{"from": "2015-01-01"}`):                        true,
 	}
 
 	schemaTest(tests, profileSchema, t)

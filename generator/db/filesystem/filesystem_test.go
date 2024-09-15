@@ -131,7 +131,11 @@ func quickUpdate(testdb db.Database, strat db.UpdateStrategy) (int, error) {
 	}
 	defer testdb.Close()
 
-	updatePlan := db.PlanUpdate(testdb, strat)
+	updatePlan, err := db.PlanUpdate(testdb, strat)
+	if err != nil {
+		return certsGenerated, err
+	}
+
 	certsGenerated, err = db.Update(testdb, updatePlan)
 	if err != nil {
 		return certsGenerated, err
@@ -1144,7 +1148,7 @@ func TestGenerateChanged(t *testing.T) {
 }
 
 func TestGenerateChangedFalsePositives(t *testing.T) {
-	prof := "{version: 1,name: rootprofile,validity: {duration: 10y}}"
+	prof := "{version: 1,name: rootprofile,validity: {from: 2022-01-01}}"
 	cfg := "{version: 1,subject: CN=TestRoot,profile: rootprofile}"
 
 	fsdb := getTestFs(map[string]string{
@@ -1163,7 +1167,7 @@ func TestGenerateChangedFalsePositives(t *testing.T) {
 
 	//don't regenerate if profile name changes and nothing else
 	fsdb = getTestFs(map[string]string{
-		"renamedprofile.yaml": "{version: 1,name: renamedprofile,validity: {duration: 10y}}",
+		"renamedprofile.yaml": "{version: 1,name: renamedprofile,validity: {from: 2022-01-01}}",
 		"root.yaml":           "{version: 1,subject: CN=TestRoot,profile: renamedprofile}",
 		"root.pem":            string(firstRoot),
 	})
@@ -1200,7 +1204,7 @@ func TestGenerateChangedFalsePositives(t *testing.T) {
 	//regenerate if just the profile changes
 	fsdb = getTestFs(map[string]string{
 		"rootprofile.yaml": prof,
-		"root.yaml":        "{version: 1,name: rootprofile,validity: {duration: 20y}}",
+		"root.yaml":        "{version: 1,profile: rootprofile,subject: CN=TestRoot,validity: {from: 2050-01-01}}",
 		"root.pem":         string(firstRoot),
 	})
 	testdb = NewFilesystemDatabase(fsdb)

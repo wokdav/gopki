@@ -157,7 +157,7 @@ func TestNeedsUpdateCertExpired(t *testing.T) {
 	defer db.Close()
 
 	e := simpleEntity
-	e.Config.ValidUntil = time.Now().AddDate(-1, 0, -1)
+	e.Config.Validity.Until = time.Now().AddDate(-1, 0, -1)
 	e.BuildArtifact.Certificate = &cert.Certificate{}
 	e.BuildArtifact.Certificate.TBSCertificate.Validity.NotAfter = time.Now().AddDate(-1, 0, 0)
 

@@ -171,61 +171,59 @@ func TestValidateSubject(t *testing.T) {
 }
 
 func TestMergeValidity(t *testing.T) {
-	type validity struct {
-		from  time.Time
-		until time.Time
+	validity1 := CertificateValidity{
+		From:     time.Now(),
+		Until:    time.Now().AddDate(20, 0, 0),
+		IsSet:    true,
+		IsStatic: false,
 	}
-	validity1 := validity{time.Now(), time.Now().AddDate(20, 0, 0)}
-	validity2 := validity{time.Now().AddDate(15, 0, 0), time.Now().AddDate(25, 0, 0)}
+	validity2 := CertificateValidity{
+		From:     time.Now().AddDate(15, 0, 0),
+		Until:    time.Now().AddDate(25, 0, 0),
+		IsSet:    true,
+		IsStatic: false,
+	}
+	validity3 := CertificateValidity{
+		From:     time.Now(),
+		Until:    time.Now().AddDate(20, 0, 0),
+		IsSet:    true,
+		IsStatic: true,
+	}
 
 	type testVector struct {
-		profile *validity
-		certCfg validity
-		expect  validity
+		profile CertificateValidity
+		certCfg CertificateValidity
+		expect  CertificateValidity
 	}
 
-	not_set := validity{}
+	not_set := CertificateValidity{}
 
 	tests := []testVector{
-		{profile: &validity1, certCfg: not_set, expect: validity1},
-		{profile: nil, certCfg: validity1, expect: validity1},
-		{profile: &validity1, certCfg: validity2, expect: validity2},
-		{profile: &validity1, certCfg: validity1, expect: validity1},
-		{profile: &validity2, certCfg: validity1, expect: validity1},
+		{profile: validity1, certCfg: not_set, expect: validity1},
+		{profile: not_set, certCfg: validity1, expect: validity1},
+		{profile: validity1, certCfg: validity2, expect: validity2},
+		{profile: validity1, certCfg: validity1, expect: validity1},
+		{profile: validity2, certCfg: validity1, expect: validity1},
+		{profile: validity2, certCfg: validity3, expect: validity3},
 	}
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("merge-validity-#%v", i), func(t *testing.T) {
-			var prof CertificateProfile
-			if test.profile == nil {
-				prof = CertificateProfile{
-					ValidFrom:  nil,
-					ValidUntil: nil,
-				}
-			} else {
-				prof = CertificateProfile{
-					ValidFrom:  &test.profile.from,
-					ValidUntil: &test.profile.until,
-				}
-			}
-
 			content, err := Merge(
-				prof,
+				CertificateProfile{
+					Validity: test.profile,
+				},
 				CertificateContent{
-					ValidFrom:  test.certCfg.from,
-					ValidUntil: test.certCfg.until,
+					Validity: test.certCfg,
 				},
 			)
 			if err != nil {
 				t.Fatal(err.Error())
 			}
 
-			if !content.ValidFrom.Equal(test.expect.from) ||
-				!content.ValidUntil.Equal(test.expect.until) {
-				t.Fatalf("expected date to be [from=%v,until=%v] bit it was [from=%v,until=%v] instead",
-					test.expect.from, test.expect.until,
-					content.ValidFrom, content.ValidUntil,
-				)
+			if !reflect.DeepEqual(content.Validity, test.expect) {
+				t.Fatalf("expected validity to be [%v], but got [%v]",
+					content.Validity, test.expect)
 			}
 		})
 	}

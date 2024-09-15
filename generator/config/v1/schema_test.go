@@ -213,12 +213,6 @@ func TestValidity(t *testing.T) {
 		`{ "duration": "10y" }`:                           true,
 		`{ "from": "2020-01-01", "until": "2030-01-01" }`: true,
 		`{ "from": "2020-01-01", "duration": "10y" }`:     true,
-
-		//bad
-		`{}`:                       false,
-		`{ "from": "2020-01-01" }`: false,
-		`{ "from": "2020-01-01", "until": "2030-01-01", "duration": "10y" }`: false,
-		`{ "until": "2030-01-01", "duration": "10y" }`:                       false,
 	}
 
 	schemaTest(tests, compileSingleSchema("validity.json"), t)

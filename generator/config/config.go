@@ -126,13 +126,18 @@ type CertificateContent struct {
 	Profile            string
 	Subject            pkix.RDNSequence
 	Issuer             string
-	ValidFrom          time.Time
-	ValidUntil         time.Time
-	StaticValidity     bool
+	Validity           CertificateValidity
 	KeyAlgorithm       cert.KeyAlgorithm
 	SignatureAlgorithm cert.SignatureAlgorithm
 	Extensions         []ExtensionConfig
 	Manipulations      Manipulations
+}
+
+type CertificateValidity struct {
+	From     time.Time
+	Until    time.Time
+	IsStatic bool //does it have an explicit "from"?
+	IsSet    bool //if false, it should inherit default values
 }
 
 type Manipulations struct {
@@ -149,15 +154,20 @@ type Manipulations struct {
 // This also goes for all implementations of ExtensionConfig.
 func (c CertificateContent) HashSum() []byte {
 	//c is not a pointer, so this change is temporary
-	if !c.StaticValidity {
-		c.ValidFrom = time.Time{}
+	if !c.Validity.IsStatic || !c.Validity.IsSet {
+		c.Validity.From = time.Time{}
+		c.Validity.Until = time.Time{}
 	}
+	c.Profile = ""
+	c.Alias = ""
 
 	//marshal c to json
 	b, err := json.Marshal(c)
 	if err != nil {
 		panic("can't marshal struct to json")
 	}
+
+	logging.Debug(string(b))
 
 	//hash json with sha1
 	alg := sha1.New()
@@ -183,8 +193,7 @@ type ProfileExtension struct {
 // The general representation of a certificate profile.
 type CertificateProfile struct {
 	Name              string
-	ValidFrom         *time.Time
-	ValidUntil        *time.Time
+	Validity          CertificateValidity
 	SubjectAttributes ProfileSubjectAttributes
 	Extensions        []ProfileExtension
 }
@@ -440,8 +449,6 @@ func Validate(profile CertificateProfile, content CertificateContent) bool {
 	return true
 }
 
-var uninitializedTime time.Time = time.Time{}
-
 // Function to merge a certificate profile into a certificate configuration.
 // The certificate will inherit the validity and the extensions, if it does not
 // define it itself. One exception are non-optional extensions which will always be inherited.
@@ -451,13 +458,9 @@ var uninitializedTime time.Time = time.Time{}
 func Merge(profile CertificateProfile, content CertificateContent) (*CertificateContent, error) {
 	//copy
 	out := content
-	if profile.ValidFrom != nil && profile.ValidUntil != nil {
-		if content.ValidFrom.Equal(uninitializedTime) {
-			out.ValidFrom = *profile.ValidFrom
-		}
-		if content.ValidUntil.Equal(uninitializedTime) {
-			out.ValidUntil = *profile.ValidUntil
-		}
+
+	if !out.Validity.IsSet && profile.Validity.IsSet {
+		out.Validity = profile.Validity
 	}
 
 	newExt := make([]ExtensionConfig, 0, len(profile.Extensions)+len(content.Extensions))

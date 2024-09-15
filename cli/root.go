@@ -101,7 +101,11 @@ func init() {
 				os.Exit(0)
 			}
 
-			changeList := db.PlanUpdate(fsdb, strat)
+			changeList, err := db.PlanUpdate(fsdb, strat)
+			if err != nil {
+				fmt.Printf("can't determine necessary tasks: %v", err)
+				os.Exit(1)
+			}
 
 			changeWarning := false
 			for _, change := range changeList {
