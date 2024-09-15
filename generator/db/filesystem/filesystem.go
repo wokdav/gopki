@@ -24,6 +24,7 @@ package filesystem
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -210,9 +211,16 @@ func (fsdb *FsDb) AddProfile(profile config.CertificateProfile) error {
 	return nil
 }
 
+const hashPrefix string = "#HASH:"
+
 func (fsdb *FsDb) exportPemFile(entity fsEntity) error {
-	var err error
 	bb := bytes.Buffer{}
+
+	_, err := bb.Write([]byte(hashPrefix + base64.StdEncoding.EncodeToString(entity.Config.HashSum()) + "\n"))
+	if err != nil {
+		logging.Errorf("error writing pem for %v: %v", entity.Config.Alias, err)
+	}
+
 	if entity.BuildArtifact.Certificate != nil {
 		err = entity.BuildArtifact.Certificate.WritePem(&bb)
 		if err != nil {
@@ -247,27 +255,10 @@ func (fsdb *FsDb) exportPemFile(entity fsEntity) error {
 	return nil
 }
 
-func (fsdb *FsDb) importPemFile(alias string) db.BuildArtifact {
-	logging.Debugf("attempting to import cert/key for '%v' that we can reuse", alias)
+func (fsdb *FsDb) importPem(content []byte) db.BuildArtifact {
 	out := db.BuildArtifact{}
-	e, ok := fsdb.entities[alias]
-	if !ok {
-		return db.BuildArtifact{}
-	}
-	certFile := e.artifactFileName()
-	certfi, err := fsdb.filesystem.FS().Open(certFile)
-	if err != nil {
-		logging.Debugf("import of %v failed: %v", certFile, err)
-		return out
-	}
-	defer certfi.Close()
 
-	certfiContent, err := io.ReadAll(certfi)
-	if err != nil {
-		return out
-	}
-
-	pemFile, err := cert.ReadPem(certfiContent)
+	pemFile, err := cert.ReadPem(content)
 	if err != nil {
 		logging.Infof("pem import failed: %v", err)
 	}
@@ -276,14 +267,6 @@ func (fsdb *FsDb) importPemFile(alias string) db.BuildArtifact {
 		out.Certificate = pemFile.Certificate
 	} else {
 		logging.Infof("certificate import failed: no certificate found")
-	}
-
-	//get modtime for certFile
-	fi, err := fsdb.filesystem.Stat(certFile)
-	if err != nil && !os.IsNotExist(err) {
-		logging.Infof("could not get modtime for %v: %v", certFile, err)
-	} else {
-		e.lastArtifactWrite = fi.ModTime()
 	}
 
 	if pemFile.PrivateKey != nil {
@@ -340,8 +323,55 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 		logging.Warningf("filesystem does not support statfs. cannot get modtime for %v. updates based on modtimes will be unreliable", configPath)
 	}
 
-	//attempt to import certificate and key
-	e.DbEntity.BuildArtifact = fsdb.importPemFile(certContent.Alias)
+	//get modtime for cert file
+	var readableArtifactFound bool
+	var certfiContent []byte
+	certFile := e.artifactFileName()
+	certfi, err := fsdb.filesystem.FS().Open(certFile)
+	if err != nil {
+		logging.Debugf("attempt to open %v failed: %v", certFile, err)
+	} else {
+		certfiContent, err = io.ReadAll(certfi)
+		if err != nil {
+			logging.Warningf("reading of %v failed: %v", certFile, err)
+			certfi.Close()
+		} else {
+			readableArtifactFound = true
+		}
+
+		certfi.Close()
+	}
+
+	if readableArtifactFound {
+		fi, err := fsdb.filesystem.Stat(certFile)
+		if err != nil {
+			logging.Warningf("could not get modtime for %v: %v", certFile, err)
+		} else {
+			e.lastArtifactWrite = fi.ModTime()
+		}
+
+		logging.Debugf("attempting to import cert/key for '%v' that we can reuse", certFile)
+
+		//attempt to import certificate and key
+		logging.Debugf("attempting to import cert/key for '%v' that we can reuse", certFile)
+		e.DbEntity.BuildArtifact = fsdb.importPem(certfiContent)
+
+		hashIx := bytes.Index(certfiContent, []byte(hashPrefix))
+
+		if hashIx != -1 {
+			hashEnd := bytes.IndexRune(certfiContent[hashIx:], '\n')
+			hashIx += len(hashPrefix)
+			if hashEnd != -1 {
+				hashs := string(certfiContent[hashIx:hashEnd])
+				hashBytes, err := base64.StdEncoding.DecodeString(hashs)
+				if err != nil {
+					logging.Warningf("error decoding config hash for %v: %v", certFile, err)
+				} else {
+					e.DbEntity.LastConfigHash = hashBytes
+				}
+			}
+		}
+	}
 
 	//populate root and subscriber lists
 	if !alreadyExists {
@@ -366,8 +396,7 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 }
 
 // Open will walk through the filesystem and collect all config files, building
-// the certificate hierarchy. It does not just open a file descriptor, as the name might
-// suggest.
+// the certificate hierarchy.
 func ImportFiles(backend db.Database, fsys fs.FS) error {
 	logging.Debug("scanning folder for config files")
 

@@ -12,9 +12,9 @@ import (
 	"github.com/wokdav/gopki/generator/config"
 )
 
-func fromDate(y int, m int, d int) *time.Time {
+func fromDate(y int, m int, d int) time.Time {
 	date := time.Date(y, time.Month(m), d, 0, 0, 0, 0, time.Local)
-	return &date
+	return date
 }
 
 func TestMain(m *testing.M) {
@@ -115,78 +115,80 @@ func TestAlias(t *testing.T) {
 func TestTimespan(t *testing.T) {
 	//input struct and the expected return values of the functions
 	type timeTest struct {
-		CertValidity
-		t1       *time.Time
-		t2       *time.Time
+		json     CertValidity
+		cfg      *config.CertificateValidity
 		errorNil bool
 	}
 
 	tests := []timeTest{
-		{CertValidity{}, nil, nil, false},                    //no time given should fail
-		{CertValidity{From: "2022-01-01"}, nil, nil, false},  //only from time given should fail
-		{CertValidity{Until: "2022-01-01"}, nil, nil, false}, //from missing should fail
-		{CertValidity{Duration: "1y"}, nil, nil, false},
-		{CertValidity{Until: "2022-01-01", Duration: "1y"}, nil, nil, false},
-		{CertValidity{From: "2022-01-01", Until: "2023-01-01", Duration: "1y"}, nil, nil, false}, //both end values given should fail
-		{CertValidity{From: "2022-01-01", Until: "2023-01-01", Duration: "2y"}, nil, nil, false}, //especially when they are in conflict
-		{CertValidity{From: "2022-01-1", Duration: "1y"}, nil, nil, false},                       //from date malformed
-		{CertValidity{From: "2022-1-01", Duration: "1y"}, nil, nil, false},
-		{CertValidity{From: "22-01-01", Duration: "1y"}, nil, nil, false},
-		{CertValidity{From: "20220101", Duration: "1y"}, nil, nil, false},
-		{CertValidity{From: "2022-01-01", Duration: "1yr"}, nil, nil, false}, //duration malformed
-		{CertValidity{From: "2022-01-01", Duration: "1month"}, nil, nil, false},
-		{CertValidity{From: "2022-01-01", Duration: "1day"}, nil, nil, false},
-		{CertValidity{From: "2022-01-01", Duration: "1d1m1y"}, nil, nil, false},
-		{CertValidity{From: "2022-01-01", Until: "2023-01-1"}, nil, nil, false}, //until malformed
-		{CertValidity{From: "2022-01-01", Until: "2023-1-01"}, nil, nil, false},
-		{CertValidity{From: "2022-01-01", Until: "23-1-01"}, nil, nil, false},
-		{CertValidity{From: "2022-01-01", Until: "20230101"}, nil, nil, false},
+		//bad cases (mainly parsing errors)
+		{CertValidity{Until: "2022-01-01", Duration: "1y"}, nil, false},
+		{CertValidity{From: "2022-01-01", Until: "2023-01-01", Duration: "1y"}, nil, false}, //both end values given should fail
+		{CertValidity{From: "2022-01-01", Until: "2023-01-01", Duration: "2y"}, nil, false}, //especially when they are in conflict
+		{CertValidity{From: "2022-01-1", Duration: "1y"}, nil, false},                       //from date malformed
+		{CertValidity{From: "2022-1-01", Duration: "1y"}, nil, false},
+		{CertValidity{From: "22-01-01", Duration: "1y"}, nil, false},
+		{CertValidity{From: "20220101", Duration: "1y"}, nil, false},
+		{CertValidity{From: "2022-01-01", Duration: "1yr"}, nil, false}, //duration malformed
+		{CertValidity{From: "2022-01-01", Duration: "1month"}, nil, false},
+		{CertValidity{From: "2022-01-01", Duration: "1day"}, nil, false},
+		{CertValidity{From: "2022-01-01", Duration: "1d1m1y"}, nil, false},
+		{CertValidity{From: "2022-01-01", Until: "2023-01-1"}, nil, false}, //until malformed
+		{CertValidity{From: "2022-01-01", Until: "2023-1-01"}, nil, false},
+		{CertValidity{From: "2022-01-01", Until: "23-1-01"}, nil, false},
+		{CertValidity{From: "2022-01-01", Until: "20230101"}, nil, false},
 
 		//good cases
 		{CertValidity{From: "2022-01-01", Until: "2023-01-01"},
-			fromDate(2022, 1, 1), fromDate(2023, 1, 1), true},
+			&config.CertificateValidity{From: fromDate(2022, 1, 1), Until: fromDate(2023, 1, 1), IsStatic: true, IsSet: true}, true},
+		{CertValidity{From: "2022-01-01"},
+			&config.CertificateValidity{From: fromDate(2022, 1, 1), Until: fromDate(2027, 1, 1), IsStatic: true, IsSet: true}, true},
+		{CertValidity{},
+			&config.CertificateValidity{IsStatic: false, IsSet: false}, true},
+		{CertValidity{Until: "2050-01-01"},
+			&config.CertificateValidity{Until: fromDate(2050, 1, 1), IsStatic: false, IsSet: true}, true},
 		{CertValidity{From: "2022-01-01", Duration: "1y"},
-			fromDate(2022, 1, 1), fromDate(2023, 1, 1), true},
+			&config.CertificateValidity{From: fromDate(2022, 1, 1), Until: fromDate(2023, 1, 1), IsSet: true, IsStatic: true}, true},
 		{CertValidity{From: "2022-01-01", Duration: "1m"},
-			fromDate(2022, 1, 1), fromDate(2022, 2, 1), true},
+			&config.CertificateValidity{From: fromDate(2022, 1, 1), Until: fromDate(2022, 2, 1), IsSet: true, IsStatic: true}, true},
 		{CertValidity{From: "2022-01-01", Duration: "1d"},
-			fromDate(2022, 1, 1), fromDate(2022, 1, 2), true},
+			&config.CertificateValidity{From: fromDate(2022, 1, 1), Until: fromDate(2022, 1, 2), IsSet: true, IsStatic: true}, true},
 		{CertValidity{From: "2022-01-01", Duration: "1y1m1d"},
-			fromDate(2022, 1, 1), fromDate(2022, 1, 2), true},
+			&config.CertificateValidity{From: fromDate(2022, 1, 1), Until: fromDate(2023, 2, 2), IsSet: true, IsStatic: true}, true},
 		{CertValidity{From: "2022-01-01", Duration: "15y4m20d"},
-			fromDate(2022, 1, 1), fromDate(2037, 5, 21), true},
+			&config.CertificateValidity{From: fromDate(2022, 1, 1), Until: fromDate(2037, 5, 21), IsSet: true, IsStatic: true}, true},
 	}
+
+	undefinedTime := time.Time{}
 
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			t1, t2, err := test.CertValidity.extractTimespan()
-
-			var tmpfail bool //re-use same error message
-
-			tmpfail = false
-			if (t1 == nil) != (test.t1 == nil) {
-				tmpfail = true
-			} else if t1 != nil && !t1.Equal(*test.t1) {
-				tmpfail = true
-			}
-			if tmpfail {
-				t.Errorf(`#%v: "From"-time different than expected. Expected "%v", got "%v"`, i, test.t1, t1)
-			}
-
-			tmpfail = false
-			if (t2 == nil) != (test.t2 == nil) {
-				tmpfail = true
-			} else if t1 != nil && !t1.Equal(*test.t1) {
-				tmpfail = true
-			}
-
-			if tmpfail {
-				t.Errorf(`#%v: "To"-time different than expected. Expected "%v", got "%v"`, i, test.t2, t2)
-			}
+			result, err := test.json.toTimeStruct()
 
 			if (err == nil) != test.errorNil {
 				t.Errorf("#%v: Error differs from expectation. Expected: %v, got %v", i, test.errorNil, err == nil)
 			}
+
+			if test.cfg == nil {
+				return
+			}
+
+			if test.cfg.From != undefinedTime && result.From != test.cfg.From {
+				t.Errorf(`#%v: "From"-time different than expected. Expected "%v", got "%v"`, i, test.cfg.From, result.From)
+			}
+
+			if test.cfg.Until != undefinedTime && result.Until != test.cfg.Until {
+				t.Errorf(`#%v: "To"-time different than expected. Expected "%v", got "%v"`, i, test.cfg.Until, result.Until)
+			}
+
+			if result.IsSet != test.cfg.IsSet {
+				t.Errorf(`#%v: IsSet flag different than expected. Expected "%v", got "%v"`, i, test.cfg.IsSet, result.IsSet)
+			}
+
+			if result.IsStatic != test.cfg.IsStatic {
+				t.Errorf(`#%v: IsStatic flag different than expected. Expected "%v", got "%v"`, i, test.cfg.IsStatic, result.IsStatic)
+			}
+
 		})
 	}
 }

@@ -20,12 +20,13 @@ import (
 
 	"github.com/wokdav/gopki/generator/cert"
 	"github.com/wokdav/gopki/generator/config"
-	"github.com/wokdav/gopki/logging"
 
 	"github.com/ghodss/yaml"
 )
 
 var durationRx *regexp.Regexp
+
+const DefaultValidityYears = 5
 
 func init() {
 	config.AddConfigurator(1, V1Configurator{})
@@ -149,54 +150,6 @@ const (
 // The implementor of [config.Configurator] for version 1.
 type V1Configurator struct{}
 
-// calculate start and end time from string struct
-func (c CertValidity) extractTimespan() (*time.Time, *time.Time, error) {
-	var from time.Time
-	var to time.Time
-
-	//parse validity
-	//determine start time
-	if len(c.From) != 0 {
-		t, err := time.ParseInLocation(dateForm, c.From, time.Local)
-		if err != nil {
-			return nil, nil, errors.New(`config-v1: "from" date is not conforming to YYYY-MM-DD`)
-		}
-		from = t
-	} else {
-		return nil, nil, errors.New(`config-v1: "from" date is missing`)
-	}
-
-	//determine expiration time
-	if len(c.Until) != 0 && len(c.Duration) != 0 {
-		return nil, nil, errors.New(`config-v1: "until" and "duration" were both specified, instead of just one`)
-	} else {
-		if len(c.Until) != 0 {
-			t, err := time.ParseInLocation(dateForm, c.Until, time.Local)
-			if err != nil {
-				return nil, nil, errors.New(`config-v1: "until" date is not conforming to YYYY-MM-DD`)
-			}
-			to = t
-		} else if len(c.Duration) != 0 {
-			if !durationRx.MatchString(c.Duration) {
-				return nil, nil, errors.New(`config-v1: "duration" is not conforming to schema`)
-			}
-
-			all := durationRx.FindStringSubmatch(c.Duration)
-
-			// schema already tells us it's conforming, so we ignore errors here
-			y, _ := strconv.Atoi(all[2])
-			m, _ := strconv.Atoi(all[4])
-			d, _ := strconv.Atoi(all[6])
-
-			to = time.Now().AddDate(y, m, d)
-		} else {
-			return nil, nil, errors.New(`config-v1: "until" and "duration" both not given`)
-		}
-	}
-
-	return &from, &to, nil
-}
-
 const (
 	defaulSignatureAlgorithmEc  = cert.ECDSAwithSHA256
 	defaulSignatureAlgorithmRsa = cert.RSAwithSHA256
@@ -231,24 +184,6 @@ var sigAlgorithms map[string]cert.SignatureAlgorithm = map[string]cert.Signature
 	"ECDSAwithSHA512": cert.ECDSAwithSHA512,
 }
 
-func inferDefaults(v *CertValidity) bool {
-	if len(v.Duration) == 0 && len(v.Until) == 0 && len(v.From) == 0 {
-		return false
-	}
-
-	if len(v.From) == 0 {
-		logging.Debug("'from' is missing. setting to current time")
-		v.From = time.Now().Local().Format(dateForm)
-	}
-
-	if len(v.Until) == 0 && len(v.Duration) == 0 {
-		logging.Debug("'until' and 'duration' are missing. setting to current time + 5y")
-		v.Until = time.Now().Local().AddDate(5, 0, 0).Format(dateForm)
-	}
-
-	return true
-}
-
 // Struct for YAML/JSON marshaling.
 type Profile struct {
 	ProfileName       string                          `json:"name"`
@@ -265,12 +200,9 @@ func initProfile(p Profile) (*config.CertificateProfile, error) {
 
 	var err error
 
-	changed := inferDefaults(&p.Validity)
-	if changed {
-		out.ValidFrom, out.ValidUntil, err = p.Validity.extractTimespan()
-		if err != nil {
-			return nil, err
-		}
+	out.Validity, err = p.Validity.toTimeStruct()
+	if err != nil {
+		return nil, err
 	}
 
 	extTmp, err := parseExtensions(p.Extensions)
@@ -390,6 +322,56 @@ func (v V1Configurator) ParseConfiguration(s string) (any, error) {
 	return nil, errors.New("config-v1: provided string neither compatible with profile nor with certificate config")
 }
 
+func (cv CertValidity) toTimeStruct() (config.CertificateValidity, error) {
+	out := config.CertificateValidity{}
+	var err error
+
+	//parse validity
+	//determine start time
+	if len(cv.From) != 0 {
+		out.From, err = time.ParseInLocation(dateForm, cv.From, time.Local)
+		if err != nil {
+			return out, errors.New(`config-v1: "from" date is not conforming to YYYY-MM-DD`)
+		}
+		out.IsSet = true
+		out.IsStatic = true
+	} else {
+		out.From = time.Now()
+	}
+
+	//determine expiration time
+	if len(cv.Until) != 0 && len(cv.Duration) != 0 {
+		return out, errors.New(`config-v1: "until" and "duration" were both specified, instead of just one`)
+	} else {
+		if len(cv.Until) != 0 {
+			out.Until, err = time.ParseInLocation(dateForm, cv.Until, time.Local)
+			if err != nil {
+				return out, errors.New(`config-v1: "until" date is not conforming to YYYY-MM-DD`)
+			}
+			out.IsSet = true
+		} else if len(cv.Duration) != 0 {
+			if !durationRx.MatchString(cv.Duration) {
+				return out, errors.New(`config-v1: "duration" is not conforming to schema`)
+			}
+
+			all := durationRx.FindStringSubmatch(cv.Duration)
+
+			// schema already tells us it's conforming, so we ignore errors here
+			y, _ := strconv.Atoi(all[2])
+			m, _ := strconv.Atoi(all[4])
+			d, _ := strconv.Atoi(all[6])
+
+			out.Until = out.From.AddDate(y, m, d)
+			out.IsSet = true
+		} else {
+			//both empty
+			out.Until = out.From.AddDate(DefaultValidityYears, 0, 0)
+		}
+	}
+
+	return out, nil
+}
+
 func initCertificate(c CertConfig) (*config.CertificateContent, error) {
 	out := config.CertificateContent{}
 
@@ -422,23 +404,10 @@ func initCertificate(c CertConfig) (*config.CertificateContent, error) {
 	out.Alias = c.Alias
 	out.Issuer = c.Issuer
 
-	//fill in default values
-	if len(c.Validity.From) == 0 {
-		c.Validity.From = time.Now().Local().Format(dateForm)
-	}
-	changed := inferDefaults(&c.Validity)
-
-	if !changed {
-		return nil, errors.New("config-v1: not enough information to calculate defaults for validity")
-	}
-
-	from, to, err := c.Validity.extractTimespan()
+	out.Validity, err = c.Validity.toTimeStruct()
 	if err != nil {
 		return nil, err
 	}
-
-	out.ValidFrom = *from
-	out.ValidUntil = *to
 
 	out.KeyAlgorithm = defaultKeyAlgorithm
 

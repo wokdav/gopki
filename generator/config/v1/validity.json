@@ -5,9 +5,5 @@
         "from":  { "$ref": "date.json" },
         "until": { "$ref": "date.json" },
         "duration": { "$ref": "duration.json" }
-    },
-    "oneOf": [
-        {"required": ["until"]},
-        {"required": ["duration"]}
-    ]
+    }
 }

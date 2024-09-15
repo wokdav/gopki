@@ -39,7 +39,7 @@ func BuildCertBody(c config.CertificateContent, prk crypto.PrivateKey, req *cert
 		}
 	}
 	ctx := cert.NewCertificateContext(c.Subject, extBuild,
-		c.ValidFrom, c.ValidUntil)
+		c.Validity.From, c.Validity.Until)
 
 	if c.SerialNumber != 0 {
 		ctx.SerialNumber = big.NewInt(c.SerialNumber)

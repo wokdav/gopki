@@ -50,6 +50,7 @@ type signContext struct {
 	genAll         *bool
 	genExpired     *bool
 	genNewerConfig *bool
+	genChanged     *bool
 }
 
 var verbose bool
@@ -63,7 +64,7 @@ func init() {
 	cmdSign := cobra.Command{
 		Use:   "sign",
 		Short: "(Re-)sign certificates",
-		Long:  "Goes through a certificate folder, (re-)generating certificates as needed",
+		Long:  "Goes through a certificate folder, (re-)generating certificates as needed. By default certificates will be (re-)generated if it's missing or if the config hash changed",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			fsdb := filesystem.NewFilesystemDatabase(filesystem.NewNativeFs(args[0]))
@@ -91,13 +92,20 @@ func init() {
 			if *ctx.genNewerConfig {
 				strat |= db.UpdateNewerConfig
 			}
+			if *ctx.genChanged {
+				strat |= db.UpdateChanged
+			}
 
 			if strat == db.UpdateNone {
 				fmt.Println("all generate-flags set to false. nothing to do.")
 				os.Exit(0)
 			}
 
-			changeList := db.PlanUpdate(fsdb, strat)
+			changeList, err := db.PlanUpdate(fsdb, strat)
+			if err != nil {
+				fmt.Printf("can't determine necessary tasks: %v", err)
+				os.Exit(1)
+			}
 
 			changeWarning := false
 			for _, change := range changeList {
@@ -134,6 +142,7 @@ func init() {
 	ctx.genAll = cmdSign.PersistentFlags().BoolP("generate-all", "a", false, "(re-)generate all certificates")
 	ctx.genExpired = cmdSign.PersistentFlags().BoolP("generate-expired", "e", false, "regenerate certificats if expired")
 	ctx.genNewerConfig = cmdSign.PersistentFlags().BoolP("generate-outdated", "o", false, "regenerate certificates if config newer than certificates")
+	ctx.genChanged = cmdSign.PersistentFlags().BoolP("generate-changed", "c", true, "regenerate certificates if config is different from the generated ones")
 
 	cmdDoc := cobra.Command{
 		Use:   "doc",

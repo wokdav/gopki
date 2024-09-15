@@ -8,6 +8,7 @@
 package db
 
 import (
+	"bytes"
 	"crypto"
 	"fmt"
 	"time"
@@ -31,7 +32,8 @@ const (
 	UpdateMissing     UpdateStrategy = 1
 	UpdateExpired     UpdateStrategy = 2
 	UpdateNewerConfig UpdateStrategy = 4
-	UpdateAll         UpdateStrategy = 8
+	UpdateChanged     UpdateStrategy = 8
+	UpdateAll         UpdateStrategy = 16
 )
 
 type ChangeType uint8
@@ -67,6 +69,7 @@ type BuildArtifact struct {
 type DbEntity struct {
 	LastBuild        time.Time
 	Config           config.CertificateContent
+	LastConfigHash   []byte
 	LastConfigUpdate time.Time
 	BuildArtifact    BuildArtifact
 }
@@ -79,31 +82,38 @@ func needsUpdate(backend Database, strat UpdateStrategy, alias string) bool {
 	}
 
 	if strat&UpdateAll > 0 {
-		logging.Debugf("%v needs update. reson: GenerateAlways is set", entity.Config.Alias)
+		logging.Debugf("%v needs update. reason: GenerateAlways is set", entity.Config.Alias)
 		return true
 	}
 
 	issuer := backend.GetEntity(entity.Config.Issuer)
 	if strat != UpdateNone && issuer != nil && issuer.LastBuild.After(entity.LastBuild) {
-		logging.Debugf("%v needs update. reson: issuer %v was updated later", entity, issuer)
+		logging.Debugf("%v needs update. reason: issuer %v was updated later", entity, issuer)
 		return true
 	}
 
 	if strat&UpdateNewerConfig > 0 && entity.LastConfigUpdate.After(entity.LastBuild) {
-		logging.Debugf("%v needs update. reson: config was updated", entity)
+		logging.Debugf("%v needs update. reason: config was updated", entity)
 		return true
 	}
 
 	if strat&UpdateExpired > 0 && entity.BuildArtifact.Certificate != nil &&
 		entity.BuildArtifact.Certificate.TBSCertificate.Validity.NotAfter.Before(time.Now()) &&
-		entity.Config.ValidUntil.After(time.Now()) {
-		logging.Debugf("%v needs update. reson: certificate is expired", entity)
+		entity.Config.Validity.Until.After(time.Now()) {
+		logging.Debugf("%v needs update. reason: certificate is expired", entity)
 		return true
 	}
 
 	if strat&UpdateMissing > 0 && (entity.BuildArtifact.Certificate == nil ||
 		entity.BuildArtifact.PrivateKey == nil) {
-		logging.Debugf("%v needs update. reson: certificate or private key is missing", entity)
+		logging.Debugf("%v needs update. reason: certificate or private key is missing", entity)
+		return true
+	}
+
+	logging.Debugf("configHash: %v, lastConfigHash: %v", entity.Config.HashSum(), entity.LastConfigHash)
+
+	if strat&UpdateChanged > 0 && entity.LastConfigHash != nil && !bytes.Equal(entity.LastConfigHash, entity.Config.HashSum()) {
+		logging.Debugf("%v needs update. reason: current config differs from last applied config", entity)
 		return true
 	}
 
@@ -170,7 +180,7 @@ type Change struct {
 
 type ChangeList []Change
 
-func PlanUpdate(backend Database, strat UpdateStrategy) ChangeList {
+func PlanUpdate(backend Database, strat UpdateStrategy) (ChangeList, error) {
 	changes := make(ChangeList, 0, 1024)
 
 	todo := make([]string, 0, 1024)
@@ -188,6 +198,11 @@ func PlanUpdate(backend Database, strat UpdateStrategy) ChangeList {
 		todo = append(todo, subs...)
 
 		entityObj := backend.GetEntity(currentEntity)
+
+		//validate and merge profile if applicable
+		if err := validateAndMerge(backend, entityObj); err != nil {
+			return nil, err
+		}
 
 		update := needsUpdate(backend, strat, entityObj.Config.Alias)
 
@@ -208,14 +223,14 @@ func PlanUpdate(backend Database, strat UpdateStrategy) ChangeList {
 		}
 	}
 
-	return changes
+	return changes, nil
 }
 
 func Update(backend Database, changes ChangeList) (int, error) {
 	certsGenerated := 0
 
 	for _, change := range changes {
-		if change.Change != ChangeCreate && change.Change != ChangeReplace {
+		if change.Change&(ChangeCreate|ChangeReplace) == 0 {
 			continue
 		}
 
@@ -223,11 +238,6 @@ func Update(backend Database, changes ChangeList) (int, error) {
 		var issuerCtx cert.IssuerContext
 		var issuerEntity *DbEntity
 		var err error
-
-		//validate and merge profile if applicable
-		if err = validateAndMerge(backend, change.Entity); err != nil {
-			return certsGenerated, err
-		}
 
 		logging.Debugf("generating new certificate body for %v", change.Entity.Config.Alias)
 		ctx, err = generator.BuildCertBody(change.Entity.Config,

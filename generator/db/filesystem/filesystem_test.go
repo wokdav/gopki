@@ -131,7 +131,11 @@ func quickUpdate(testdb db.Database, strat db.UpdateStrategy) (int, error) {
 	}
 	defer testdb.Close()
 
-	updatePlan := db.PlanUpdate(testdb, strat)
+	updatePlan, err := db.PlanUpdate(testdb, strat)
+	if err != nil {
+		return certsGenerated, err
+	}
+
 	certsGenerated, err = db.Update(testdb, updatePlan)
 	if err != nil {
 		return certsGenerated, err
@@ -1090,6 +1094,129 @@ func TestGenerateExpiredExplicitFuture(t *testing.T) {
 	newPem, _ := fs.ReadFile(fsdb.FS(), "root.pem")
 	if strings.Contains(string(newPem), expiredCert) {
 		t.Fatal("expected certificate to change")
+	}
+}
+
+func TestGenerateChanged(t *testing.T) {
+	fsdb := getTestFs(map[string]string{
+		"root.yaml": "version: 1\nsubject: CN=TestRoot\n",
+	})
+
+	testdb := NewFilesystemDatabase(fsdb)
+	_, err := quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	_, err = fs.ReadFile(fsdb.FS(), "root.pem")
+	if err == nil {
+		t.Fatal("a missing hash should not count as a change")
+	}
+
+	_, err = quickUpdate(testdb, db.UpdateMissing)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	firstRoot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+	_, err = quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	firstRootAgain, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+	if !bytes.Equal(firstRoot, firstRootAgain) {
+		t.Fatal("unchanged certificate config triggered re-generation")
+	}
+
+	// place old cert artifact into changed filesystem
+	fsdb = getTestFs(map[string]string{
+		"root.yaml": "version: 1\nsubject: CN=TestRootDIFFERENT\n",
+		"root.pem":  string(firstRoot),
+	})
+	testdb = NewFilesystemDatabase(fsdb)
+
+	_, err = quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	secondRoot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+	if bytes.Equal(secondRoot, firstRoot) {
+		t.Fatal("changed certificate config did not trigger re-generation")
+	}
+}
+
+func TestGenerateChangedFalsePositives(t *testing.T) {
+	prof := "{version: 1,name: rootprofile,validity: {from: 2022-01-01}}"
+	cfg := "{version: 1,subject: CN=TestRoot,profile: rootprofile}"
+
+	fsdb := getTestFs(map[string]string{
+		"rootprofile.yaml": prof,
+		"root.yaml":        cfg,
+	})
+
+	testdb := NewFilesystemDatabase(fsdb)
+
+	_, err := quickUpdate(testdb, db.UpdateMissing)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	firstRoot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+
+	//don't regenerate if profile name changes and nothing else
+	fsdb = getTestFs(map[string]string{
+		"renamedprofile.yaml": "{version: 1,name: renamedprofile,validity: {from: 2022-01-01}}",
+		"root.yaml":           "{version: 1,subject: CN=TestRoot,profile: renamedprofile}",
+		"root.pem":            string(firstRoot),
+	})
+	testdb = NewFilesystemDatabase(fsdb)
+
+	_, err = quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	secondRoot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+	if !bytes.Equal(secondRoot, firstRoot) {
+		t.Fatal("profile name change is not relevant for regeneration")
+	}
+
+	//don't regenerate if profile name changes and nothing else
+	fsdb = getTestFs(map[string]string{
+		"rootprofile.yaml": prof,
+		"root.yaml":        cfg,
+		"root.pem":         string(firstRoot),
+	})
+	testdb = NewFilesystemDatabase(fsdb)
+
+	_, err = quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	thirdroot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+	if !bytes.Equal(thirdroot, firstRoot) {
+		t.Fatal("alias change is not relevant for regeneration")
+	}
+
+	//regenerate if just the profile changes
+	fsdb = getTestFs(map[string]string{
+		"rootprofile.yaml": prof,
+		"root.yaml":        "{version: 1,profile: rootprofile,subject: CN=TestRoot,validity: {from: 2050-01-01}}",
+		"root.pem":         string(firstRoot),
+	})
+	testdb = NewFilesystemDatabase(fsdb)
+
+	_, err = quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	fourthroot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+	if bytes.Equal(fourthroot, firstRoot) {
+		t.Fatal("profile change should trigger regeneration")
 	}
 }
 
