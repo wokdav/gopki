@@ -1120,9 +1120,6 @@ func TestGenerateChanged(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	s := string(firstRoot)
-	fmt.Println(s)
-
 	firstRootAgain, _ := fs.ReadFile(fsdb.FS(), "root.pem")
 	if !bytes.Equal(firstRoot, firstRootAgain) {
 		t.Fatal("unchanged certificate config triggered re-generation")
@@ -1143,6 +1140,79 @@ func TestGenerateChanged(t *testing.T) {
 	secondRoot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
 	if bytes.Equal(secondRoot, firstRoot) {
 		t.Fatal("changed certificate config did not trigger re-generation")
+	}
+}
+
+func TestGenerateChangedFalsePositives(t *testing.T) {
+	prof := "{version: 1,name: rootprofile,validity: {duration: 10y}}"
+	cfg := "{version: 1,subject: CN=TestRoot,profile: rootprofile}"
+
+	fsdb := getTestFs(map[string]string{
+		"rootprofile.yaml": prof,
+		"root.yaml":        cfg,
+	})
+
+	testdb := NewFilesystemDatabase(fsdb)
+
+	_, err := quickUpdate(testdb, db.UpdateMissing)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	firstRoot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+
+	//don't regenerate if profile name changes and nothing else
+	fsdb = getTestFs(map[string]string{
+		"renamedprofile.yaml": "{version: 1,name: renamedprofile,validity: {duration: 10y}}",
+		"root.yaml":           "{version: 1,subject: CN=TestRoot,profile: renamedprofile}",
+		"root.pem":            string(firstRoot),
+	})
+	testdb = NewFilesystemDatabase(fsdb)
+
+	_, err = quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	secondRoot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+	if !bytes.Equal(secondRoot, firstRoot) {
+		t.Fatal("profile name change is not relevant for regeneration")
+	}
+
+	//don't regenerate if profile name changes and nothing else
+	fsdb = getTestFs(map[string]string{
+		"rootprofile.yaml": prof,
+		"root.yaml":        cfg,
+		"root.pem":         string(firstRoot),
+	})
+	testdb = NewFilesystemDatabase(fsdb)
+
+	_, err = quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	thirdroot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+	if !bytes.Equal(thirdroot, firstRoot) {
+		t.Fatal("alias change is not relevant for regeneration")
+	}
+
+	//regenerate if just the profile changes
+	fsdb = getTestFs(map[string]string{
+		"rootprofile.yaml": prof,
+		"root.yaml":        "{version: 1,name: rootprofile,validity: {duration: 20y}}",
+		"root.pem":         string(firstRoot),
+	})
+	testdb = NewFilesystemDatabase(fsdb)
+
+	_, err = quickUpdate(testdb, db.UpdateChanged)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	fourthroot, _ := fs.ReadFile(fsdb.FS(), "root.pem")
+	if bytes.Equal(fourthroot, firstRoot) {
+		t.Fatal("profile change should trigger regeneration")
 	}
 }
 
