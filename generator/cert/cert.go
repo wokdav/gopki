@@ -534,14 +534,14 @@ const (
 type SignatureAlgorithm uint
 
 const (
-	ECDSAwithSHA1 SignatureAlgorithm = iota
-	ECDSAwithSHA256
-	ECDSAwithSHA384
-	ECDSAwithSHA512
-	RSAwithSHA1
+	RSAwithSHA1 SignatureAlgorithm = iota
 	RSAwithSHA256
 	RSAwithSHA384
 	RSAwithSHA512
+	ECDSAwithSHA1
+	ECDSAwithSHA256
+	ECDSAwithSHA384
+	ECDSAwithSHA512
 )
 
 type KeyAlgorithm uint

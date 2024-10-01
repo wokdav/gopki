@@ -118,7 +118,12 @@ type Configurator interface {
 
 // The general representation of a certificate configuration.
 // Generation engines can use this to generate certificates.
+//
+// TODO: Document which of these must be set and which
+// may be omitted and what defaults they assume
 type CertificateContent struct {
+	//TODO: can the alias even be removed since it's more like a db thing?
+	//Same goes for the profile name
 	Alias              string
 	SerialNumber       int64
 	IssuerUniqueId     asn1.BitString

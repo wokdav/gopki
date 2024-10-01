@@ -101,7 +101,7 @@ func init() {
 				os.Exit(0)
 			}
 
-			changeList, err := db.PlanUpdate(fsdb, strat)
+			changeList, err := db.PlanBulkUpdate(fsdb, strat)
 			if err != nil {
 				fmt.Printf("can't determine necessary tasks: %v", err)
 				os.Exit(1)
@@ -114,7 +114,7 @@ func init() {
 						fmt.Println("The following entites will be overwritten:")
 						changeWarning = true
 					}
-					fmt.Printf("> %v\n", change.Entity.Config.Alias)
+					fmt.Printf("> %v\n", change.Alias)
 				}
 			}
 
@@ -130,7 +130,7 @@ func init() {
 				}
 			}
 
-			_, err = db.Update(fsdb, changeList)
+			_, err = db.BulkUpdate(fsdb, changeList)
 			if err != nil {
 				fmt.Printf("error during database update: %s", err.Error())
 				os.Exit(1)

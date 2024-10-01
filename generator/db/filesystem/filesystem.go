@@ -35,6 +35,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/wokdav/gopki/generator/cert"
 	"github.com/wokdav/gopki/generator/config"
 	"github.com/wokdav/gopki/generator/db"
@@ -52,8 +53,10 @@ type Filesystem interface {
 	FS() fs.FS
 	WriteFile(name string, content []byte) error
 	Stat(name string) (os.FileInfo, error)
+	DeleteFile(name string) error
 }
 
+// this shit belongs into a test class
 type mapfs struct {
 	fsobj fs.FS
 	m     map[string]*fstest.MapFile
@@ -73,6 +76,11 @@ func (m mapfs) WriteFile(name string, content []byte) error {
 		Mode:    writePermissions,
 		ModTime: time.Now(),
 	}
+	return nil
+}
+
+func (m mapfs) DeleteFile(name string) error {
+	delete(m.m, name)
 	return nil
 }
 
@@ -107,16 +115,23 @@ func (n nativefs) WriteFile(name string, content []byte) error {
 	return os.WriteFile(n.basepath+string(os.PathSeparator)+name, content, writePermissions)
 }
 
+func (n nativefs) DeleteFile(name string) error {
+	if filepath.IsAbs(name) {
+		return fmt.Errorf("filesystem: '%s' is an absolute path, rather than a part relative to the provided basename", name)
+	}
+
+	return os.Remove(n.basepath + string(os.PathSeparator) + name)
+}
+
 // Generates a new [filesystem.Filesystem] based on [os.DirFS], plus some write
 // functionality taken from the [os] package.
 func NewNativeFs(path string) Filesystem {
 	return nativefs{basepath: path, fsObj: os.DirFS(path)}
 }
 
-type fsEntity struct {
-	*db.DbEntity
-	configFile        string
-	lastArtifactWrite time.Time
+type fsMetadata struct {
+	db.Metadata
+	configFileName string
 }
 
 // It effectively builds a graph of certificate nodes and issuer-relations as edges.
@@ -127,8 +142,12 @@ type fsEntity struct {
 type FsDb struct {
 	//filesystem fs.FS
 	filesystem Filesystem
-	entities   map[string]*fsEntity //greedily stores all cert nodes
-	profiles   map[string]*config.CertificateProfile
+	//greedily store all cert nodes
+	configs    map[string]*config.CertificateContent
+	artifacts  map[string]*db.BuildArtifact
+	fsMetadata map[string]*fsMetadata
+
+	profiles map[string]*config.CertificateProfile
 
 	rootAliases   []string            //aliases of all root certificates
 	subscribersOf map[string][]string //gets all subordinate aliases for the key alias
@@ -137,61 +156,129 @@ type FsDb struct {
 // Create a new file system database based on the provided implementation.
 // This function pre-allocates about 2K+ KB of arrays to minimize re-allocation,
 // so it should be used consciously.
+// TODO: Stream from disk instead of caching EVERYTHING
 func NewFilesystemDatabase(filesystem Filesystem) db.Database {
 	return &FsDb{
 		filesystem: filesystem,
 		//certNodes must store pointers, because we want to change the content
-		entities:      make(map[string]*fsEntity, 1024),
+		configs:       make(map[string]*config.CertificateContent, 1024),
+		artifacts:     make(map[string]*db.BuildArtifact, 1024),
+		fsMetadata:    make(map[string]*fsMetadata, 1024),
 		profiles:      make(map[string]*config.CertificateProfile, 32),
 		rootAliases:   make([]string, 0, 128),
 		subscribersOf: make(map[string][]string, 1024),
 	}
 }
 
-func (f fsEntity) artifactFileName() string {
-	return f.configFile[:strings.LastIndex(f.configFile, ".")] + ".pem"
+func (f fsMetadata) artifactFileName() string {
+	return f.configFileName[:strings.LastIndex(f.configFileName, ".")] + ".pem"
 }
 
-func (fsdb *FsDb) GetEntity(alias string) *db.DbEntity {
-	e, ok := fsdb.entities[alias]
-	if !ok {
+func (fsdb *FsDb) PutConfig(alias string, cfg config.CertificateContent) error {
+	if len(alias) == 0 {
+		return errors.New("filesystem.go: alias must not be empty")
+	}
+
+	_, existed := fsdb.configs[alias]
+	fsdb.configs[alias] = &cfg
+
+	var meta *fsMetadata
+	if existed {
+		meta = fsdb.fsMetadata[alias]
+		meta.LastConfigUpdate = time.Now()
+
 		return nil
 	}
-	return e.DbEntity
-}
+	meta = &fsMetadata{
+		configFileName: alias + ".yaml",
+		Metadata: db.Metadata{
+			LastConfigUpdate: time.Now(),
+		},
+	}
+	fsdb.fsMetadata[alias] = meta
 
-func generateConfigFileNameFor(entity db.DbEntity) string {
-	return entity.Config.Alias + ".yaml"
-}
-
-// TODO: Import feels so scattered now
-// TODO: what if the entity is root? We need to add it to the root list?
-func (fsdb *FsDb) PutEntity(entity db.DbEntity) error {
-	if len(entity.Config.Alias) == 0 {
-		return fmt.Errorf("cannot store entity without alias")
+	if _, ok := fsdb.artifacts[alias]; !ok {
+		fsdb.artifacts[alias] = &db.BuildArtifact{}
 	}
 
-	fsentity, ok := fsdb.entities[entity.Config.Alias]
-	if !ok {
-		fsentity = &fsEntity{
-			DbEntity:   &entity,
-			configFile: generateConfigFileNameFor(entity),
-		}
-		fsdb.entities[entity.Config.Alias] = fsentity
-	} else {
-		fsentity.DbEntity = &entity
+	b, err := yaml.Marshal(&cfg)
+	if err != nil {
+		return fmt.Errorf("filesystem.go: can't marshal config for alias %v to yaml: %v",
+			alias, err)
 	}
 
-	var err error
-	if fsentity.lastArtifactWrite.Before(fsentity.DbEntity.LastBuild) {
-		err = fsdb.exportPemFile(*fsentity)
+	err = fsdb.filesystem.WriteFile(meta.configFileName, b)
+	if err != nil {
+		return fmt.Errorf("filesystem.go: can't write config for alias %v to file %v: %v",
+			alias, meta.configFileName, err)
 	}
 
 	return err
 }
 
+func (fsdb *FsDb) GetConfig(alias string) (*config.CertificateContent, error) {
+	fsentity, ok := fsdb.configs[alias]
+	if !ok {
+		return nil, nil
+	}
+
+	return fsentity, nil
+}
+
+func (fsdb *FsDb) PutBuildArtifact(alias string, artifact db.BuildArtifact) error {
+	_, ok := fsdb.configs[alias]
+	if !ok {
+		return fmt.Errorf("filesystem.go: can't find alias %v in database", alias)
+	}
+
+	fsdb.artifacts[alias] = &artifact
+	err := fsdb.exportPemFile(alias)
+
+	if artifact.Certificate != nil {
+		fsdb.fsMetadata[alias].LastBuild = time.Now()
+	}
+
+	return err
+}
+
+func (fsdb *FsDb) GetBuildArtifact(alias string) (*db.BuildArtifact, error) {
+	out, ok := fsdb.artifacts[alias]
+	if !ok {
+		return nil, nil
+	}
+
+	return out, nil
+}
+
+func (fsdb *FsDb) GetMetadata(alias string) (*db.Metadata, error) {
+	fsentity, ok := fsdb.fsMetadata[alias]
+	if !ok {
+		return nil, nil
+	}
+
+	//copy just in case
+	var out db.Metadata = fsentity.Metadata
+
+	return &out, nil
+}
+
+func (fsdb *FsDb) Delete(alias string) error {
+	meta, ok := fsdb.fsMetadata[alias] //means it does not exist
+	if !ok {
+		return nil
+	}
+
+	err := fsdb.Delete(meta.configFileName)
+	if err != nil {
+		return err
+	}
+
+	err = fsdb.Delete(meta.artifactFileName())
+	return err
+}
+
 func (fsdb *FsDb) NumEntities() int {
-	return len(fsdb.entities)
+	return len(fsdb.configs)
 }
 
 func (fsdb *FsDb) RootEntities() []string {
@@ -202,8 +289,8 @@ func (fsdb *FsDb) GetSubscribers(alias string) []string {
 	return fsdb.subscribersOf[alias]
 }
 
-func (fsdb *FsDb) GetProfile(name string) *config.CertificateProfile {
-	return fsdb.profiles[name]
+func (fsdb *FsDb) GetProfile(name string) (*config.CertificateProfile, error) {
+	return fsdb.profiles[name], nil
 }
 
 func (fsdb *FsDb) AddProfile(profile config.CertificateProfile) error {
@@ -213,36 +300,45 @@ func (fsdb *FsDb) AddProfile(profile config.CertificateProfile) error {
 
 const hashPrefix string = "#HASH:"
 
-func (fsdb *FsDb) exportPemFile(entity fsEntity) error {
+func (fsdb *FsDb) exportPemFile(alias string) error {
 	bb := bytes.Buffer{}
 
-	_, err := bb.Write([]byte(hashPrefix + base64.StdEncoding.EncodeToString(entity.Config.HashSum()) + "\n"))
-	if err != nil {
-		logging.Errorf("error writing pem for %v: %v", entity.Config.Alias, err)
+	cfg, ok := fsdb.configs[alias]
+	if !ok {
+		return fmt.Errorf("filesystem: alias %v does not exist", alias)
 	}
 
-	if entity.BuildArtifact.Certificate != nil {
-		err = entity.BuildArtifact.Certificate.WritePem(&bb)
+	_, err := bb.Write([]byte(hashPrefix + base64.StdEncoding.EncodeToString(cfg.HashSum()) + "\n"))
+	if err != nil {
+		logging.Errorf("error writing pem for %v: %v", alias, err)
+	}
+
+	artifact := fsdb.artifacts[alias]
+
+	if artifact.Certificate != nil {
+		err = artifact.Certificate.WritePem(&bb)
 		if err != nil {
 			return err
 		}
 	}
-	if entity.BuildArtifact.PrivateKey != nil {
-		err = cert.WritePrivateKeyToPem(entity.BuildArtifact.PrivateKey, &bb)
+	if artifact.PrivateKey != nil {
+		err = cert.WritePrivateKeyToPem(artifact.PrivateKey, &bb)
 		if err != nil {
 			return err
 		}
 	}
-	if entity.BuildArtifact.Request != nil {
-		err = entity.BuildArtifact.Request.WritePem(&bb)
+	if artifact.Request != nil {
+		err = artifact.Request.WritePem(&bb)
 		if err != nil {
 			return err
 		}
 	}
+
+	meta := fsdb.fsMetadata[alias]
 
 	if bb.Len() > 0 {
 		err = fsdb.filesystem.WriteFile(
-			entity.artifactFileName(),
+			meta.artifactFileName(),
 			bb.Bytes(),
 		)
 		if err != nil {
@@ -250,7 +346,7 @@ func (fsdb *FsDb) exportPemFile(entity fsEntity) error {
 		}
 	}
 
-	entity.lastArtifactWrite = time.Now()
+	meta.LastBuild = time.Now()
 
 	return nil
 }
@@ -282,7 +378,7 @@ func (fsdb *FsDb) importPem(content []byte) db.BuildArtifact {
 	return out
 }
 
-func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, configPath string) error {
+func (fsdb *FsDb) importCertConfigFile(certContent config.CertificateContent, configPath string) error {
 	logging.Debugf("certificate recognized")
 
 	//default alias is the filename
@@ -292,8 +388,8 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 		logging.Debugf("alias is not set. setting it to '%v'", newAlias)
 	}
 
-	e, alreadyExists := fsdb.entities[certContent.Alias]
-	if alreadyExists && e.configFile != configPath {
+	meta, alreadyExists := fsdb.fsMetadata[certContent.Alias]
+	if alreadyExists && meta.configFileName != configPath {
 		logging.Errorf("alias %s already exists in database", certContent.Alias)
 		logging.Errorf("either rename one of these config files to something unique or set a unique alias in the config")
 
@@ -301,14 +397,13 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 	}
 
 	if !alreadyExists {
-		e = &fsEntity{
-			configFile: configPath,
-			DbEntity: &db.DbEntity{
-				Config: certContent,
-			},
+		fsdb.configs[certContent.Alias] = &certContent
+		meta = &fsMetadata{
+			configFileName: configPath,
 		}
+		fsdb.fsMetadata[certContent.Alias] = meta
+		fsdb.artifacts[certContent.Alias] = &db.BuildArtifact{}
 	}
-	fsdb.entities[certContent.Alias] = e
 
 	//get modtime for config file
 	statfs, ok := fsdb.filesystem.FS().(fs.StatFS)
@@ -317,7 +412,7 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 		if err != nil {
 			logging.Warningf("could not get modtime for %v: %v", configPath, err)
 		} else {
-			e.DbEntity.LastConfigUpdate = stat.ModTime()
+			meta.LastConfigUpdate = stat.ModTime()
 		}
 	} else {
 		logging.Warningf("filesystem does not support statfs. cannot get modtime for %v. updates based on modtimes will be unreliable", configPath)
@@ -326,7 +421,7 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 	//get modtime for cert file
 	var readableArtifactFound bool
 	var certfiContent []byte
-	certFile := e.artifactFileName()
+	certFile := meta.artifactFileName()
 	certfi, err := fsdb.filesystem.FS().Open(certFile)
 	if err != nil {
 		logging.Debugf("attempt to open %v failed: %v", certFile, err)
@@ -347,14 +442,13 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 		if err != nil {
 			logging.Warningf("could not get modtime for %v: %v", certFile, err)
 		} else {
-			e.lastArtifactWrite = fi.ModTime()
+			meta.LastBuild = fi.ModTime()
 		}
-
-		logging.Debugf("attempting to import cert/key for '%v' that we can reuse", certFile)
 
 		//attempt to import certificate and key
 		logging.Debugf("attempting to import cert/key for '%v' that we can reuse", certFile)
-		e.DbEntity.BuildArtifact = fsdb.importPem(certfiContent)
+		importedArtifact := fsdb.importPem(certfiContent)
+		fsdb.artifacts[certContent.Alias] = &importedArtifact
 
 		hashIx := bytes.Index(certfiContent, []byte(hashPrefix))
 
@@ -367,7 +461,7 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 				if err != nil {
 					logging.Warningf("error decoding config hash for %v: %v", certFile, err)
 				} else {
-					e.DbEntity.LastConfigHash = hashBytes
+					meta.LastConfigHash = hashBytes
 				}
 			}
 		}
@@ -397,7 +491,8 @@ func (fsdb *FsDb) importCertConfig(certContent config.CertificateContent, config
 
 // Open will walk through the filesystem and collect all config files, building
 // the certificate hierarchy.
-func ImportFiles(backend db.Database, fsys fs.FS) error {
+// TODO: Scales poorly atm since the all data is held in RAM
+func importFiles(backend db.Database, fsys fs.FS) error {
 	logging.Debug("scanning folder for config files")
 
 	fsdb, ok := backend.(*FsDb)
@@ -447,7 +542,7 @@ func ImportFiles(backend db.Database, fsys fs.FS) error {
 		certContent, ok := cfg.(*config.CertificateContent)
 		if ok {
 			logging.Debugf("certificate recognized")
-			err = fsdb.importCertConfig(*certContent, path)
+			err = fsdb.importCertConfigFile(*certContent, path)
 			if err != nil {
 				return err
 			}
@@ -465,13 +560,13 @@ func ImportFiles(backend db.Database, fsys fs.FS) error {
 		panic(fmt.Errorf("filesystem: file '%s' can neither be casted as a profile nor as a certificate config, even though parsing was successful", path))
 	})
 
-	logging.Infof("found %v cert configs (containing %v root configs) and %v cert profiles", len(fsdb.entities), len(fsdb.profiles), len(fsdb.rootAliases))
+	logging.Infof("found %v cert configs (containing %v root configs) and %v cert profiles", len(fsdb.configs), len(fsdb.profiles), len(fsdb.rootAliases))
 
 	return err
 }
 
 func (fsdb *FsDb) Open() error {
-	err := ImportFiles(fsdb, fsdb.filesystem.FS())
+	err := importFiles(fsdb, fsdb.filesystem.FS())
 	if err != nil {
 		return err
 	}

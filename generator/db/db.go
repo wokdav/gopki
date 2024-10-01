@@ -10,6 +10,7 @@ package db
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,12 +19,6 @@ import (
 	"github.com/wokdav/gopki/generator/config"
 	"github.com/wokdav/gopki/logging"
 )
-
-//TODO: de-couple receiving artifacts from storing them;
-//      maybe a receiver interface and a storage interface?
-//TODO: allow for incremental adding new entities
-//      right now only work with full re-builds when configs are known
-//      but this is not always the case (e.g. when receiving them from a socket)
 
 type UpdateStrategy uint8
 
@@ -46,18 +41,86 @@ const (
 )
 
 type Database interface {
+	// Prepare the database object to be able to run queries on
 	Open() error
+
+	// Close all handles and free all resources for this database
 	Close() error
 
-	PutEntity(DbEntity) error
-	GetEntity(string) *DbEntity
+	// Return the number of certificate configurations we know of
+	// and we know how to build
 	NumEntities() int
 
+	// Return all aliases that do not have an issuer different from
+	// themselves
 	RootEntities() []string
+
+	// Return all aliases that have the given alias as an issuer
 	GetSubscribers(string) []string
 
+	// Add a Certificate Profile to the Database.
+	// When this command terminates, it is expected to have the profile
+	// ready to use.
 	AddProfile(config.CertificateProfile) error
-	GetProfile(string) *config.CertificateProfile
+
+	// Return the profile under the given name.
+	// If no such profile exists, return nil without returning an error.
+	// Only return an error here if an actual error happens inside the
+	// database.
+	GetProfile(string) (*config.CertificateProfile, error)
+
+	// Add a Certificate Configuration to the Database.
+	// When this command terminates, it is expected to have the Configuration
+	// ready to use.
+	//
+	// Important: Writing a Configuration must also update the metadata internally
+	// where applicable.
+	//
+	PutConfig(string, config.CertificateContent) error
+
+	// Return the configuration for the given alias.
+	// If the alias is not known to the database, nil shall be returned without an error.
+	// Only return an error here if an actual error happens inside the
+	// database.
+	GetConfig(string) (*config.CertificateContent, error) // if not present, both are nil
+
+	// Add a Certificate Configuration to the Database.
+	// When this command terminates, it is expected to have the Configuration
+	// ready to use.
+	//
+	// Important: Writing an Artifact must also update the metadata internally
+	// where applicable.
+	PutBuildArtifact(string, BuildArtifact) error
+
+	// Return the Artifact for the given alias.
+	// If the alias is not known to the database, nil shall be returned without an error.
+	// Only return an error here if an actual error happens inside the
+	// database.
+	//
+	// If the Database knows of the entity under the given alias, but it
+	// has not Build Artifact, then an empty Build Artifact shall be returned.
+	// A nil artifact suggests that the alias is unknown.
+	GetBuildArtifact(string) (*BuildArtifact, error)
+
+	// Return the Metadata for the given alias.
+	// If the alias is not known to the database, nil shall be returned without an error.
+	// Only return an error here if an actual error happens inside the
+	// database.
+	GetMetadata(string) (*Metadata, error)
+
+	// TODO: If we delete a CA, should we also delete everything below it?
+	// Delete all data corresponding to the alias. After this command terminates
+	// it is expected that the Database is in a state as if the entity has never
+	// existed.
+	//
+	// This applies especially to Configs, Metadata and Build Artifacts.
+	Delete(alias string) error
+}
+
+type Metadata struct {
+	LastBuild        time.Time
+	LastConfigHash   []byte
+	LastConfigUpdate time.Time
 }
 
 type BuildArtifact struct {
@@ -66,88 +129,122 @@ type BuildArtifact struct {
 	Request     *cert.CertificateRequest
 }
 
-type DbEntity struct {
-	LastBuild        time.Time
-	Config           config.CertificateContent
-	LastConfigHash   []byte
-	LastConfigUpdate time.Time
-	BuildArtifact    BuildArtifact
-}
-
-func needsUpdate(backend Database, strat UpdateStrategy, alias string) bool {
-	entity := backend.GetEntity(alias)
-	if entity == nil {
-		logging.Warningf("db: entity '%s' not found. no update possible", alias)
-		return false
+func needsUpdate(backend Database, strat UpdateStrategy, alias string, cfg *config.CertificateContent) bool {
+	var err error
+	if cfg == nil {
+		cfg, err = backend.GetConfig(alias)
+		if err != nil {
+			logging.Errorf("db: entity '%s' not found. error during fetch: %v", alias, err)
+			return false
+		}
+		if cfg == nil {
+			logging.Warningf("db: entity '%s' not found. no update possible", alias)
+			return false
+		}
 	}
 
 	if strat&UpdateAll > 0 {
-		logging.Debugf("%v needs update. reason: GenerateAlways is set", entity.Config.Alias)
+		logging.Debugf("%v needs update. reason: GenerateAlways is set", cfg.Alias)
 		return true
 	}
 
-	issuer := backend.GetEntity(entity.Config.Issuer)
-	if strat != UpdateNone && issuer != nil && issuer.LastBuild.After(entity.LastBuild) {
-		logging.Debugf("%v needs update. reason: issuer %v was updated later", entity, issuer)
+	issuerCfg, err := backend.GetConfig(cfg.Issuer)
+	if err != nil {
+		logging.Errorf("db: issuer of '%s' not found. error during fetch: %v", alias, err)
+		return false
+	}
+
+	meta, err := backend.GetMetadata(alias)
+	if err != nil {
+		logging.Errorf("db: metadata of '%s' not found. error during fetch: %v", alias, err)
+		return false
+	}
+
+	issuerMeta, err := backend.GetMetadata(cfg.Issuer)
+	if err != nil {
+		logging.Errorf("db: metadata for issuer of '%s' not found. error during fetch: %v", alias, err)
+		return false
+	}
+
+	if strat != UpdateNone && issuerCfg != nil && issuerMeta.LastBuild.After(meta.LastBuild) {
+		logging.Debugf("%v needs update. reason: issuer %v was updated later", alias, issuerCfg.Alias)
 		return true
 	}
 
-	if strat&UpdateNewerConfig > 0 && entity.LastConfigUpdate.After(entity.LastBuild) {
-		logging.Debugf("%v needs update. reason: config was updated", entity)
+	if strat&UpdateNewerConfig > 0 && meta.LastConfigUpdate.After(meta.LastBuild) {
+		logging.Debugf("%v needs update. reason: config was updated", cfg.Alias)
 		return true
 	}
 
-	if strat&UpdateExpired > 0 && entity.BuildArtifact.Certificate != nil &&
-		entity.BuildArtifact.Certificate.TBSCertificate.Validity.NotAfter.Before(time.Now()) &&
-		entity.Config.Validity.Until.After(time.Now()) {
-		logging.Debugf("%v needs update. reason: certificate is expired", entity)
+	build, err := backend.GetBuildArtifact(alias)
+	if err != nil {
+		logging.Errorf("db: build artifact for '%s' not found. error during fetch: %v", alias, err)
+	}
+
+	if strat&UpdateExpired > 0 && build.Certificate != nil &&
+		build.Certificate.TBSCertificate.Validity.NotAfter.Before(time.Now()) &&
+		cfg.Validity.Until.After(time.Now()) {
+		logging.Debugf("%v needs update. reason: certificate is expired", cfg.Alias)
 		return true
 	}
 
-	if strat&UpdateMissing > 0 && (entity.BuildArtifact.Certificate == nil ||
-		entity.BuildArtifact.PrivateKey == nil) {
-		logging.Debugf("%v needs update. reason: certificate or private key is missing", entity)
+	if strat&UpdateMissing > 0 && (build.Certificate == nil || build.PrivateKey == nil) {
+		logging.Debugf("%v needs update. reason: certificate or private key is missing", cfg.Alias)
 		return true
 	}
 
-	logging.Debugf("configHash: %v, lastConfigHash: %v", entity.Config.HashSum(), entity.LastConfigHash)
+	if meta != nil {
+		logging.Debugf("configHash: %v, lastConfigHash: %v", cfg.HashSum(), meta.LastConfigHash)
+	}
 
-	if strat&UpdateChanged > 0 && entity.LastConfigHash != nil && !bytes.Equal(entity.LastConfigHash, entity.Config.HashSum()) {
-		logging.Debugf("%v needs update. reason: current config differs from last applied config", entity)
+	if strat&UpdateChanged > 0 && meta.LastConfigHash != nil && !bytes.Equal(meta.LastConfigHash, cfg.HashSum()) {
+		logging.Debugf("%v needs update. reason: current config differs from last applied config", cfg.Alias)
 		return true
 	}
 
 	return false
 }
 
-func validateAndMerge(backend Database, entity *DbEntity) error {
-	if len(entity.Config.Profile) == 0 {
-		return nil
+// TODO: this should take a CertificateContent as an argument
+func validateAndMerge(backend Database, alias string) (*config.CertificateContent, error) {
+	cfg, err := backend.GetConfig(alias)
+	if err != nil {
+		return nil, fmt.Errorf("db: can't get config for alias '%v': %v", alias, err)
 	}
 
-	profile := backend.GetProfile(entity.Config.Profile)
+	if cfg == nil {
+		return nil, fmt.Errorf("db: alias '%v' does not exist", alias)
+	}
+
+	if len(cfg.Profile) == 0 {
+		return cfg, nil
+	}
+
+	profile, err := backend.GetProfile(cfg.Profile)
+	if err != nil {
+		return nil, fmt.Errorf("db: error getting profile '%v': %v", cfg.Profile, err)
+	}
+
 	if profile == nil {
-		return fmt.Errorf("db: '%s' references unknown profile '%s'",
-			entity.Config.Alias, entity.Config.Profile)
+		return nil, fmt.Errorf("db: '%s' references unknown profile '%s'",
+			cfg.Alias, cfg.Profile)
 	}
 
-	if !config.Validate(*profile, entity.Config) {
-		return fmt.Errorf("db: '%s' does not validate against profile '%s'",
-			entity.Config.Alias, entity.Config.Profile)
+	if !config.Validate(*profile, *cfg) {
+		return nil, fmt.Errorf("db: '%s' does not validate against profile '%s'",
+			cfg.Alias, cfg.Profile)
 	}
 
 	logging.Debug("validation was successful")
 
-	newContent, err := config.Merge(*profile, entity.Config)
+	newContent, err := config.Merge(*profile, *cfg)
 	if err != nil {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"db: '%s' could not be merged with profile '%s': %v",
-			entity.Config.Alias, entity.Config.Profile, err)
+			cfg.Alias, cfg.Profile, err)
 	}
 
-	entity.Config = *newContent
-
-	return nil
+	return newContent, nil
 }
 
 func IsConsistent(backend Database) bool {
@@ -174,17 +271,23 @@ func IsConsistent(backend Database) bool {
 }
 
 type Change struct {
-	Entity *DbEntity
-	Change ChangeType
+	Alias           string
+	EffectiveConfig config.CertificateContent
+	Change          ChangeType
 }
 
 type ChangeList []Change
 
-func PlanUpdate(backend Database, strat UpdateStrategy) (ChangeList, error) {
+func PlanBulkUpdate(backend Database, strat UpdateStrategy) (ChangeList, error) {
 	changes := make(ChangeList, 0, 1024)
 
 	todo := make([]string, 0, 1024)
 	todo = append(todo, backend.RootEntities()...)
+
+	//hack to quickly find whether we update a specific alias
+	//so that we can check, if we plan on updating the issuer
+	//since we then need to update the issued certs as well
+	updatedAliases := make(map[string]bool, 1024)
 
 	i := 0
 	for i < len(todo) {
@@ -197,21 +300,35 @@ func PlanUpdate(backend Database, strat UpdateStrategy) (ChangeList, error) {
 		logging.Debugf("%v signs %v more certificates. adding them to our to-do list", currentEntity, len(subs))
 		todo = append(todo, subs...)
 
-		entityObj := backend.GetEntity(currentEntity)
-
 		//validate and merge profile if applicable
-		if err := validateAndMerge(backend, entityObj); err != nil {
+		newCfg, err := validateAndMerge(backend, currentEntity)
+		if err != nil {
 			return nil, err
 		}
 
-		update := needsUpdate(backend, strat, entityObj.Config.Alias)
+		var update bool
+		if _, ok := updatedAliases[newCfg.Issuer]; ok {
+			logging.Debugf("Entity '%v' will be update, because we plan on updating it's issuer", currentEntity)
+			update = true
+		} else {
+			update = needsUpdate(backend, strat, currentEntity, newCfg)
+		}
 
 		if !update {
 			logging.Debugf("Entity '%v' does not need an update", currentEntity)
 		} else {
-			changeTmp := Change{Entity: entityObj}
+			updatedAliases[newCfg.Alias] = true
+			changeTmp := Change{
+				Alias:           currentEntity,
+				EffectiveConfig: *newCfg,
+			}
 
-			if entityObj.BuildArtifact.Certificate != nil {
+			build, err := backend.GetBuildArtifact(currentEntity)
+			if err != nil {
+				return nil, fmt.Errorf("db: can't fetch build artifact for '%v': %v", currentEntity, err)
+			}
+
+			if build.Certificate != nil {
 				logging.Infof("Entity '%v' will be overwritten", currentEntity)
 				changeTmp.Change = ChangeReplace
 			} else {
@@ -226,7 +343,70 @@ func PlanUpdate(backend Database, strat UpdateStrategy) (ChangeList, error) {
 	return changes, nil
 }
 
-func Update(backend Database, changes ChangeList) (int, error) {
+func GenerateArtifacts(backend Database, alias string) (*BuildArtifact, error) {
+	var ctx *cert.CertificateContext
+	var issuerCtx cert.IssuerContext
+	var err error
+
+	subjectConfig, err := backend.GetConfig(alias)
+	if err != nil {
+		return nil, err
+	}
+
+	if subjectConfig == nil {
+		return nil, fmt.Errorf("db: alias '%v' does not exist", alias)
+	}
+
+	subjectArtifact, err := backend.GetBuildArtifact(alias)
+	if err != nil {
+		return nil, err
+	}
+
+	if subjectArtifact == nil {
+		subjectArtifact = &BuildArtifact{}
+	}
+
+	logging.Debugf("generating new certificate body for %v", alias)
+	//TODO: This possibly generates a key. if it does the request gets outdated
+	ctx, err = generator.BuildCertBody(*subjectConfig,
+		subjectArtifact.PrivateKey, subjectArtifact.Request)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(subjectConfig.Issuer) > 0 {
+		logging.Debugf("issuer property for %v is set", subjectConfig.Alias)
+		issuerArtifact, err := backend.GetBuildArtifact(subjectConfig.Issuer)
+		if err != nil {
+			return nil, err
+		}
+
+		issuerCtx = cert.IssuerContext{
+			PrivateKey:   issuerArtifact.PrivateKey,
+			PublicKeyRaw: issuerArtifact.Certificate.TBSCertificate.PublicKey.PublicKey.Bytes,
+			IssuerDn:     issuerArtifact.Certificate.TBSCertificate.Subject,
+		}
+	} else {
+		issuerCtx = cert.AsIssuer(*ctx)
+	}
+
+	ctx.Issuer = &issuerCtx
+
+	//sign
+	logging.Debugf("signing certificate for %v", subjectConfig.Alias)
+	crt, err := generator.SignCertBody(ctx, *subjectConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BuildArtifact{
+		Certificate: crt,
+		PrivateKey:  ctx.PrivateKey,
+		Request:     subjectArtifact.Request,
+	}, nil
+}
+
+func BulkUpdate(backend Database, changes ChangeList) (int, error) {
 	certsGenerated := 0
 
 	for _, change := range changes {
@@ -234,54 +414,68 @@ func Update(backend Database, changes ChangeList) (int, error) {
 			continue
 		}
 
-		var ctx *cert.CertificateContext
-		var issuerCtx cert.IssuerContext
-		var issuerEntity *DbEntity
-		var err error
-
-		logging.Debugf("generating new certificate body for %v", change.Entity.Config.Alias)
-		ctx, err = generator.BuildCertBody(change.Entity.Config,
-			change.Entity.BuildArtifact.PrivateKey, change.Entity.BuildArtifact.Request)
+		err := backend.PutConfig(change.Alias, change.EffectiveConfig)
 		if err != nil {
 			return certsGenerated, err
 		}
 
-		if len(change.Entity.Config.Issuer) > 0 {
-			logging.Debugf("issuer property for %v is set", change.Entity.Config.Alias)
-			issuerEntity = backend.GetEntity(change.Entity.Config.Issuer)
-			issuerCtx = cert.IssuerContext{
-				PrivateKey:   issuerEntity.BuildArtifact.PrivateKey,
-				PublicKeyRaw: issuerEntity.BuildArtifact.Certificate.TBSCertificate.PublicKey.PublicKey.Bytes,
-				IssuerDn:     issuerEntity.BuildArtifact.Certificate.TBSCertificate.Subject,
-			}
-		} else {
-			issuerCtx = cert.AsIssuer(*ctx)
-		}
-
-		ctx.Issuer = &issuerCtx
-
-		//sign
-		logging.Debugf("signing certificate for %v", change.Entity.Config.Alias)
-		crt, err := generator.SignCertBody(ctx, change.Entity.Config)
+		artifact, err := GenerateArtifacts(backend, change.Alias)
 		if err != nil {
 			return certsGenerated, err
 		}
 
-		change.Entity.BuildArtifact = BuildArtifact{
-			Certificate: crt,
-			PrivateKey:  ctx.PrivateKey,
-			Request:     change.Entity.BuildArtifact.Request,
-		}
-
-		change.Entity.LastBuild = time.Now()
-		err = backend.PutEntity(*change.Entity)
+		err = backend.PutBuildArtifact(change.Alias, *artifact)
 		if err != nil {
 			return certsGenerated, err
 		}
 		certsGenerated++
-
 	}
 
 	logging.Infof("generation finished. %d certs generated", certsGenerated)
 	return certsGenerated, nil
+}
+
+func AddAndSign(backend Database, config config.CertificateContent, overwrite bool) (*BuildArtifact, error) {
+	if len(config.Alias) == 0 {
+		return nil, errors.New("no alias given")
+	}
+
+	existingCfg, err := backend.GetConfig(config.Alias)
+	if err != nil {
+		return nil, fmt.Errorf("can't fetch alias '%v': %v", config.Alias, err)
+	}
+
+	if existingCfg != nil && !overwrite {
+		return nil, fmt.Errorf("alias '%v' already exists in database", config.Alias)
+	}
+
+	err = backend.PutConfig(config.Alias, config)
+	if err != nil {
+		return nil, err
+	}
+
+	//merge
+	newcfg, err := validateAndMerge(backend, config.Alias)
+	if err != nil {
+		return nil, err
+	}
+
+	//TODO: doing this 2 times just for validateAndMerge to look it up in DB is stupid
+	err = backend.PutConfig(config.Alias, *newcfg)
+	if err != nil {
+		return nil, err
+	}
+
+	//sign
+	artifact, err := GenerateArtifacts(backend, config.Alias)
+	if err != nil {
+		return nil, err
+	}
+
+	err = backend.PutBuildArtifact(config.Alias, *artifact)
+	if err != nil {
+		return nil, err
+	}
+
+	return artifact, nil
 }

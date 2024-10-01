@@ -131,12 +131,12 @@ func quickUpdate(testdb db.Database, strat db.UpdateStrategy) (int, error) {
 	}
 	defer testdb.Close()
 
-	updatePlan, err := db.PlanUpdate(testdb, strat)
+	updatePlan, err := db.PlanBulkUpdate(testdb, strat)
 	if err != nil {
 		return certsGenerated, err
 	}
 
-	certsGenerated, err = db.Update(testdb, updatePlan)
+	certsGenerated, err = db.BulkUpdate(testdb, updatePlan)
 	if err != nil {
 		return certsGenerated, err
 	}
@@ -823,23 +823,27 @@ func TestProfileSmoke(t *testing.T) {
 	testdb := NewFilesystemDatabase(fs)
 	_, err := quickUpdate(testdb, db.UpdateMissing)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	oid, ok := cert.GetOid(cert.OidExtensionSubjectKeyId)
 	if !ok {
 		panic("oid not found")
 	}
-	e := testdb.GetEntity("root")
-	if e == nil {
+	artifact, err := testdb.GetBuildArtifact("root")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if artifact == nil {
 		t.Fatalf("entity not found")
 	}
 
-	if len(e.BuildArtifact.Certificate.TBSCertificate.Extensions) != 1 {
-		t.Fatalf("expected 1 extension, but got %v", len(e.BuildArtifact.Certificate.TBSCertificate.Extensions))
+	if len(artifact.Certificate.TBSCertificate.Extensions) != 1 {
+		t.Fatalf("expected 1 extension, but got %v", len(artifact.Certificate.TBSCertificate.Extensions))
 	}
 
-	profileExtension := e.BuildArtifact.Certificate.TBSCertificate.Extensions[0]
+	profileExtension := artifact.Certificate.TBSCertificate.Extensions[0]
 
 	if !profileExtension.Id.Equal(oid) {
 		t.Fatalf("expected oid %v, but got %v", oid.String(), profileExtension.Id.String())
@@ -977,7 +981,7 @@ func TestGenerateNewer(t *testing.T) {
 	testdb := NewFilesystemDatabase(NewMapFs(mpfs))
 	_, err := quickUpdate(testdb, db.UpdateNewerConfig)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	//check that regeneration happens
@@ -1003,7 +1007,7 @@ func TestGenerateNewer(t *testing.T) {
 	//try another update
 	_, err = quickUpdate(testdb, db.UpdateNewerConfig)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	//check that regeneration does NOT happen
@@ -1254,13 +1258,37 @@ func TestBugThreeTiers(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	entity := testdb.GetEntity("ee")
-	if entity == nil {
+	artifact, err := testdb.GetBuildArtifact("ee")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if artifact == nil {
 		t.Fatal("expected entity")
 	}
 
-	issuer := entity.BuildArtifact.Certificate.TBSCertificate.Issuer.String()
+	issuer := artifact.Certificate.TBSCertificate.Issuer.String()
 	if issuer != "CN=Test Sub" {
 		t.Fatal("expected issuer to 'CN=Test Sub', got ", issuer)
+	}
+}
+
+func TestBugConfigChanges(t *testing.T) {
+	expectedcfg := "version: 1\nsubject: CN=Test Root"
+	fsdb := getTestFs(
+		map[string]string{
+			"root.yaml": expectedcfg,
+		},
+	)
+
+	testdb := NewFilesystemDatabase(fsdb)
+	_, err := quickUpdate(testdb, db.UpdateMissing)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	newcfg, _ := fs.ReadFile(fsdb.FS(), "root.yaml")
+	if string(newcfg) != expectedcfg {
+		t.Fatalf("config changed on import. From '%v' to '%v'", expectedcfg, string(newcfg))
 	}
 }
