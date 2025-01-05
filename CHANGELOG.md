@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-01-05
+### Added
+- Allow upgrades based on certificate config change
+- Added certificate config change detection
+- Added ocspNoCheck extension
+- Added support for raw RDN value imports
+
+### Fixed
+- Timestamps are now properly merged and checked for change; were ignored earlier
+- Parsed hashcode was always `nil`
+- Serial Number is now 20 random bytes instead of 4
+- Ambiguous extension definitions are no longer ignored
+- Unmarshalling now works with non-standard curves
+- Avoid silent fail when generation returns error
+- Allow whitespace around '=' in json schema as well
+
+### Changed
+- Demand user confirmation prior to overwriting
+
 ## [0.3.1] - 2023-06-27
 ### Fixed
 - Issuer DN was mistakenly set to issuer of issuer.
